@@ -51,6 +51,18 @@ impl Size {
         size.fits().then_some(size)
     }
 
+    /// How many screen pixels each panel pixel gets in a space of `room`:
+    /// the largest whole number that fits, so that every pixel is the same
+    /// square, or, when the panel is bigger than the space, the fraction
+    /// that makes it fit.
+    pub fn scale_to_fit(self, room: (u32, u32)) -> f32 {
+        let whole = (room.0 / self.width).min(room.1 / self.height);
+        if whole >= 1 {
+            return whole as f32;
+        }
+        (room.0 as f32 / self.width as f32).min(room.1 as f32 / self.height as f32)
+    }
+
     /// How far from square: the long side over the short.
     fn aspect(self) -> f64 {
         f64::from(self.width.max(self.height)) / f64::from(self.width.min(self.height))
@@ -192,6 +204,25 @@ mod tests {
         assert_eq!(guessed(1024 * 1024), ("1024x1024".into(), 0));
         assert_eq!(guess(1024 * 1024 + 1), None);
         assert_eq!(guessed(1024 * 1024 - 1).0, "1024x1024");
+    }
+
+    #[test]
+    fn a_panel_is_scaled_by_whole_pixels_when_it_fits() {
+        let panel = Size::new(64, 32);
+        assert_eq!(panel.scale_to_fit((640, 640)), 10.0);
+        assert_eq!(
+            panel.scale_to_fit((700, 330)),
+            10.0,
+            "the tighter side decides"
+        );
+        assert_eq!(
+            panel.scale_to_fit((700, 319)),
+            9.0,
+            "never a part of a pixel"
+        );
+        assert_eq!(panel.scale_to_fit((64, 32)), 1.0);
+        assert_eq!(panel.scale_to_fit((32, 32)), 0.5, "too big: whatever fits");
+        assert_eq!(panel.scale_to_fit((0, 0)), 0.0);
     }
 
     #[test]
