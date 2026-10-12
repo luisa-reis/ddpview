@@ -1,0 +1,22 @@
+[package]
+name = "ddpview"
+version = "0.1.0"
+edition = "2021"
+description = "A virtual LED panel: receives DDP over UDP and shows the frames in a window"
+license = "MIT"
+
+[[bin]]
+name = "ddpview"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+# "2d" alone: no audio, 3D or bevy_ui, which this does not use yet.
+bevy = { version = "0.20", default-features = false, features = ["2d"] }
+bevy_egui = { version = "0.43", default-features = false, features = ["render", "default_fonts", "manage_clipboard"] }
+directories = "6"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[profile.release]
+opt-level = 2
