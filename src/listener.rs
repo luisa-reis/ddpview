@@ -49,8 +49,10 @@ pub struct Listener {
 
 impl Listener {
     /// Binds `addr` and starts reading. Port 0 picks a free one; see
-    /// `local`.
-    pub fn bind(addr: SocketAddr) -> io::Result<Self> {
+    /// `local`. `on_frame` is called, on the listener's thread, each time a
+    /// frame is ready to collect: the way to wake whoever draws without
+    /// their having to keep looking.
+    pub fn bind(addr: SocketAddr, on_frame: impl Fn() + Send + 'static) -> io::Result<Self> {
         let socket = UdpSocket::bind(addr)?;
         socket.set_read_timeout(Some(POLL))?;
         let local = socket.local_addr()?;
@@ -60,7 +62,7 @@ impl Listener {
             let (shared, stop) = (Arc::clone(&shared), Arc::clone(&stop));
             thread::Builder::new()
                 .name("ddp".into())
-                .spawn(move || receive(&socket, &shared, &stop))?
+                .spawn(move || receive(&socket, &shared, &stop, &on_frame))?
         };
         Ok(Self {
             local,
@@ -102,7 +104,7 @@ fn lock(shared: &Mutex<Shared>) -> MutexGuard<'_, Shared> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool) {
+fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool, on_frame: &dyn Fn()) {
     let mut assembler = Assembler::new();
     let mut datagram = vec![0; DATAGRAM];
     let mut sender = None;
@@ -124,13 +126,20 @@ fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool) {
             sender = Some(from);
         }
         let frame = assembler.accept(&packet);
-        let mut shared = lock(shared);
-        shared.status.packets += 1;
-        shared.status.sender = sender;
-        if let Some(frame) = frame {
-            shared.status.frames += 1;
-            shared.status.last_frame = Some(Instant::now());
-            shared.frame = Some(frame);
+        let pushed = frame.is_some();
+        {
+            let mut shared = lock(shared);
+            shared.status.packets += 1;
+            shared.status.sender = sender;
+            if let Some(frame) = frame {
+                shared.status.frames += 1;
+                shared.status.last_frame = Some(Instant::now());
+                shared.frame = Some(frame);
+            }
+        }
+        // With the lock let go: what is woken will want it.
+        if pushed {
+            on_frame();
         }
     }
 }
@@ -162,7 +171,12 @@ mod tests {
 
     #[test]
     fn frames_arrive_over_a_socket() {
-        let listener = Listener::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let woken = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let count = Arc::clone(&woken);
+        let on_frame = move || {
+            count.fetch_add(1, Ordering::Relaxed);
+        };
+        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), on_frame).unwrap();
         assert_eq!(listener.status(), Status::default());
         assert!(listener.take_frame().is_none());
 
@@ -193,14 +207,19 @@ mod tests {
         assert_eq!(status.frames, 2);
         assert_eq!(status.sender, Some(other.local_addr().unwrap()));
         assert_eq!(listener.take_frame().unwrap().rgb, [7, 8, 9]);
+        assert_eq!(
+            woken.load(Ordering::Relaxed),
+            2,
+            "once a frame, not once a packet"
+        );
     }
 
     #[test]
     fn dropping_it_frees_the_port() {
-        let listener = Listener::bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), || {}).unwrap();
         let addr = listener.local();
-        assert!(Listener::bind(addr).is_err(), "taken while it lives");
+        assert!(Listener::bind(addr, || {}).is_err(), "taken while it lives");
         drop(listener);
-        Listener::bind(addr).expect("free again");
+        Listener::bind(addr, || {}).expect("free again");
     }
 }
