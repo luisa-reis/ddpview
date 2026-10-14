@@ -35,12 +35,27 @@ The first control under **Panel** sets what the pixels look like:
 For an LED type the controls give the panel's size in millimetres.
 
 The LED look is fitted to the window as the plain pixels are, so the
-pitch sets the proportion of LED to gap, not the size on screen. Small on
-screen, the dies are a screen pixel or less, and the panel looks darker
-than Pixel Art: lit dies cover less of each cell. White shows as three
-coloured dots up close, as on a real panel.
+pitch sets the proportion of LED to gap, not the size on screen. White
+shows as three coloured dots up close, as on a real panel.
 
-The type is remembered.
+A real LED's dies are far brighter than a screen's white, which is why a
+real panel looks bright although its dies are small. A screen cannot show
+that, so drawn true to size the LEDs look dark: a fully lit one gives
+about a sixteenth of the light of a white pixel in Pixel Art. Two
+checkboxes under an LED type make up for it, both on to start with:
+
+- **Halo around each LED**: each die's light also spreads widely over the
+  package and the board around it, as glare does in the eye. It fades out
+  within the LED's own cell.
+- **Brighter (4×)**: the LEDs' light is made four times as strong. Where
+  that is more than white, the colour is scaled down as a whole, so it
+  keeps its hue (an orange stays orange, rather than turning yellow).
+  The board and packages are not brightened.
+
+With both, a fully lit LED gives about a quarter of a white pixel's
+light; with neither, the LEDs are drawn as they are.
+
+The type and both checkboxes are remembered.
 
 ## The panel's size
 
@@ -170,12 +185,14 @@ auto_size = true
 width = 64
 height = 64
 panel = "pixel-art"
+led_halo = true
+led_brighter = true
 ```
 
 `auto_size` is "Guess from the frames"; `width` and `height` are the size
 set, or the last guess, which is what the window opens at. `panel` is
-`"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1415"`. The file is
-written when one of these changes in the window, and can be edited by hand
+`"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1415"`; `led_halo` and
+`led_brighter` are the two LED checkboxes. The file is written when one of these changes in the window, and can be edited by hand
 while `ddpview` is not running. Settings left out take their defaults, the
 ones above. A file that cannot be read is ignored, with a message on the
 terminal, and replaced at the next change. Deleting it starts afresh.
