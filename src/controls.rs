@@ -89,6 +89,13 @@ fn panel(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session, plac
     ui.heading("Listening");
     listening(ui, controls, session);
 
+    if !session.forward.is_empty() {
+        ui.add_space(10.0);
+        ui.separator();
+        ui.heading("Forwarding");
+        forwarding(ui, session);
+    }
+
     ui.add_space(10.0);
     ui.separator();
     ui.heading("Arriving");
@@ -203,6 +210,24 @@ fn listening(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session) 
     }
     if session.bind.is_loopback() {
         ui.label(RichText::new("--bind 0.0.0.0 listens on the network").weak());
+    }
+}
+
+/// Where packets are passed on to, from `--forward`, and how that goes.
+fn forwarding(ui: &mut egui::Ui, session: &Session) {
+    for target in &session.forward {
+        ui.label(format!("To {target}"));
+    }
+    let status = &session.status;
+    if status.forwarded > 0 {
+        ui.label(RichText::new(format!("{} packets passed on", status.forwarded)).weak());
+    }
+    if let Some(error) = &status.forward_error {
+        let text = format!(
+            "{} of them not to every receiver. The last failure: {error}",
+            status.forward_failed
+        );
+        ui.label(RichText::new(text).color(WARNING));
     }
 }
 

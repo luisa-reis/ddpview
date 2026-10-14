@@ -41,6 +41,8 @@ pub struct Session {
     pub bind_error: Option<String>,
     pub bind: IpAddr,
     pub port: u16,
+    /// Receivers every packet is sent on to, from `--forward`.
+    pub forward: Vec<SocketAddr>,
     pub size: Size,
     /// Whether the size follows a guess from the frames.
     pub auto: bool,
@@ -71,6 +73,7 @@ impl Session {
             bind_error: None,
             bind: options.bind,
             port: options.port.unwrap_or(settings.port),
+            forward: options.forward,
             size: options.size.unwrap_or(settings.size()),
             auto: options.size.is_none() && settings.auto_size,
             guess: None,
@@ -97,13 +100,13 @@ impl Session {
         self.guess = None;
         self.redraw = true;
         let wake = Arc::clone(&self.wake);
-        match Listener::bind(SocketAddr::new(self.bind, self.port), move || wake()) {
+        let address = SocketAddr::new(self.bind, self.port);
+        match Listener::bind(address, &self.forward, move || wake()) {
             Ok(listener) => {
                 self.listener = Some(listener);
                 self.bind_error = None;
             }
             Err(e) => {
-                let address = SocketAddr::new(self.bind, self.port);
                 eprintln!("ddpview: cannot listen on {address}: {e}");
                 self.bind_error = Some(e.to_string());
             }
@@ -234,8 +237,8 @@ fn collect(mut session: ResMut<Session>) {
     // Not through `ResMut` unless something changed: change detection is
     // how the rest finds out.
     let session = session.bypass_change_detection();
-    session.status = status;
     session.samples.push_back((now, status.frames));
+    session.status = status;
     while session.samples.len() > 2 && now.duration_since(session.samples[1].0) >= RATE_OVER {
         session.samples.pop_front();
     }

@@ -39,7 +39,7 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Err(e) => {
-            eprintln!("ddpview: {e}");
+            eprintln!("ddpview: {e:#}");
             return ExitCode::from(2);
         }
     };

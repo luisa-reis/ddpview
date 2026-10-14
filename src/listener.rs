@@ -1,6 +1,7 @@
 //! The UDP socket, on a thread of its own so that nothing it does can hold
-//! up a window: it reads datagrams, feeds them to the assembler and keeps
-//! the newest frame for whoever draws to collect.
+//! up a window: it reads datagrams, passes them on to any receivers to
+//! forward to, feeds them to the assembler and keeps the newest frame for
+//! whoever draws to collect.
 
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
@@ -10,6 +11,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::ddp::{Assembler, Frame, Packet};
+use crate::forward::{loops_back, Forwarder};
 
 /// How long a read waits before looking whether to stop.
 const POLL: Duration = Duration::from_millis(50);
@@ -17,7 +19,7 @@ const POLL: Duration = Duration::from_millis(50);
 const DATAGRAM: usize = 65_536;
 
 /// What has arrived so far.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Status {
     /// Frames pushed since the socket was bound.
     pub frames: u64,
@@ -28,6 +30,12 @@ pub struct Status {
     pub sender: Option<SocketAddr>,
     /// When the last frame was pushed.
     pub last_frame: Option<Instant>,
+    /// Packets passed on to the receivers forwarded to, and of those, the
+    /// ones that could not be sent to one or more of them.
+    pub forwarded: u64,
+    pub forward_failed: u64,
+    /// The last time sending on failed: where to, and why.
+    pub forward_error: Option<String>,
 }
 
 #[derive(Default)]
@@ -49,20 +57,33 @@ pub struct Listener {
 
 impl Listener {
     /// Binds `addr` and starts reading. Port 0 picks a free one; see
-    /// `local`. `on_frame` is called, on the listener's thread, each time a
-    /// frame is ready to collect: the way to wake whoever draws without
-    /// their having to keep looking.
-    pub fn bind(addr: SocketAddr, on_frame: impl Fn() + Send + 'static) -> io::Result<Self> {
+    /// `local`. Every DDP packet is also sent, unchanged, to each address
+    /// in `forward`; one that would come straight back here is refused.
+    /// `on_frame` is called, on the listener's thread, each time a frame
+    /// is ready to collect: the way to wake whoever draws without their
+    /// having to keep looking.
+    pub fn bind(
+        addr: SocketAddr,
+        forward: &[SocketAddr],
+        on_frame: impl Fn() + Send + 'static,
+    ) -> io::Result<Self> {
         let socket = UdpSocket::bind(addr)?;
         socket.set_read_timeout(Some(POLL))?;
         let local = socket.local_addr()?;
+        if let Some(target) = forward.iter().find(|&&t| loops_back(local, t)) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("forwarding to {target} would send every packet back here"),
+            ));
+        }
+        let forwarder = Forwarder::new(forward)?;
         let shared = Arc::new(Mutex::new(Shared::default()));
         let stop = Arc::new(AtomicBool::new(false));
         let thread = {
             let (shared, stop) = (Arc::clone(&shared), Arc::clone(&stop));
             thread::Builder::new()
                 .name("ddp".into())
-                .spawn(move || receive(&socket, &shared, &stop, &on_frame))?
+                .spawn(move || receive(&socket, &forwarder, &shared, &stop, &on_frame))?
         };
         Ok(Self {
             local,
@@ -78,7 +99,7 @@ impl Listener {
     }
 
     pub fn status(&self) -> Status {
-        lock(&self.shared).status
+        lock(&self.shared).status.clone()
     }
 
     /// The newest frame, once.
@@ -104,7 +125,13 @@ fn lock(shared: &Mutex<Shared>) -> MutexGuard<'_, Shared> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool, on_frame: &dyn Fn()) {
+fn receive(
+    socket: &UdpSocket,
+    forwarder: &Forwarder,
+    shared: &Mutex<Shared>,
+    stop: &AtomicBool,
+    on_frame: &dyn Fn(),
+) {
     let mut assembler = Assembler::new();
     let mut datagram = vec![0; DATAGRAM];
     let mut sender = None;
@@ -119,6 +146,10 @@ fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool, on_fra
             lock(shared).status.rejected += 1;
             continue;
         };
+        // Passed on first, as it came, so that what is forwarded waits for
+        // nothing here: whatever this receiver makes of it, the next
+        // receiver makes its own.
+        let forwarded = (!forwarder.is_empty()).then(|| forwarder.send(&datagram[..len]));
         // Another sender's frames may be another size, and the buffer
         // remembers its length: start it again.
         if sender != Some(from) {
@@ -131,6 +162,13 @@ fn receive(socket: &UdpSocket, shared: &Mutex<Shared>, stop: &AtomicBool, on_fra
             let mut shared = lock(shared);
             shared.status.packets += 1;
             shared.status.sender = sender;
+            if let Some(result) = forwarded {
+                shared.status.forwarded += 1;
+                if let Err((target, e)) = result {
+                    shared.status.forward_failed += 1;
+                    shared.status.forward_error = Some(format!("{target}: {e}"));
+                }
+            }
             if let Some(frame) = frame {
                 shared.status.frames += 1;
                 shared.status.last_frame = Some(Instant::now());
@@ -176,7 +214,7 @@ mod tests {
         let on_frame = move || {
             count.fetch_add(1, Ordering::Relaxed);
         };
-        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), on_frame).unwrap();
+        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), &[], on_frame).unwrap();
         assert_eq!(listener.status(), Status::default());
         assert!(listener.take_frame().is_none());
 
@@ -215,11 +253,57 @@ mod tests {
     }
 
     #[test]
+    fn ddp_is_forwarded_unchanged_and_anything_else_is_not() {
+        let downstream = UdpSocket::bind("127.0.0.1:0").unwrap();
+        downstream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let listener = Listener::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &[downstream.local_addr().unwrap()],
+            || {},
+        )
+        .unwrap();
+        let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let first = packet(false, 0, &[1, 2, 3]);
+        let last = packet(true, 3, &[4, 5, 6]);
+        sender.send_to(&first, listener.local()).unwrap();
+        sender
+            .send_to(b"1234 is not ddp", listener.local())
+            .unwrap();
+        sender.send_to(&last, listener.local()).unwrap();
+
+        let mut got = [0; 64];
+        for sent in [&first, &last] {
+            let len = downstream.recv(&mut got).unwrap();
+            assert_eq!(&got[..len], &sent[..], "in order, as sent");
+        }
+        let status = settle(&listener, 3);
+        assert_eq!((status.forwarded, status.forward_failed), (2, 0));
+        assert_eq!(listener.take_frame().unwrap().rgb, [1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn forwarding_back_to_itself_is_refused() {
+        let free = UdpSocket::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let error = Listener::bind(free, &[free], || {}).err().expect("a loop");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(error.to_string().contains("back here"), "{error}");
+        Listener::bind(free, &[], || {}).expect("the port was let go");
+    }
+
+    #[test]
     fn dropping_it_frees_the_port() {
-        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), || {}).unwrap();
+        let listener = Listener::bind("127.0.0.1:0".parse().unwrap(), &[], || {}).unwrap();
         let addr = listener.local();
-        assert!(Listener::bind(addr, || {}).is_err(), "taken while it lives");
+        assert!(
+            Listener::bind(addr, &[], || {}).is_err(),
+            "taken while it lives"
+        );
         drop(listener);
-        Listener::bind(addr, || {}).expect("free again");
+        Listener::bind(addr, &[], || {}).expect("free again");
     }
 }
