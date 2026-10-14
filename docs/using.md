@@ -26,11 +26,16 @@ The first control under **Panel** sets what the pixels look like:
   round lens over a red, a green and a blue die; each die is lit by its
   own channel, and its light spreads a little through the lens. The gaps
   between packages are dark board, and an unlit LED still shows faintly,
-  so the grid stays visible on black. The controls give the panel's
-  size in millimetres.
+  so the grid stays visible on black.
+- **P1.875 SMD1415 LED**: the same at 1.875 mm pitch, each pixel a black
+  SMD1415 package, 1.4 mm wide and 1.5 mm tall. The packages fill more
+  of each cell, so the gaps are narrower; the lens and dies are smaller
+  in proportion.
 
-The LED look is fitted to the window as the plain pixels are, so 3 mm
-sets the proportion of LED to gap, not the size on screen. Small on
+For an LED type the controls give the panel's size in millimetres.
+
+The LED look is fitted to the window as the plain pixels are, so the
+pitch sets the proportion of LED to gap, not the size on screen. Small on
 screen, the dies are a screen pixel or less, and the panel looks darker
 than Pixel Art: lit dies cover less of each cell. White shows as three
 coloured dots up close, as on a real panel.
@@ -169,7 +174,7 @@ panel = "pixel-art"
 
 `auto_size` is "Guess from the frames"; `width` and `height` are the size
 set, or the last guess, which is what the window opens at. `panel` is
-`"pixel-art"` or `"p3-smd2121"`. The file is
+`"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1415"`. The file is
 written when one of these changes in the window, and can be edited by hand
 while `ddpview` is not running. Settings left out take their defaults, the
 ones above. A file that cannot be read is ignored, with a message on the

@@ -13,7 +13,7 @@ Context for Claude Code sessions working on ddpview.
   Bevy was chosen on purpose, for the 3D rendering planned next; do not
   swap it for something lighter.
 - It shows plain square pixels, or a flat face-on LED panel drawn by a
-  shader (P3 SMD2121), as the user picks. What comes later, in
+  shader (P3 SMD2121, P1.875 SMD1415), as the user picks. What comes later, in
   order, is in the todo file, `../ddpview-todo.md` (outside the
   repository), which also records what was decided and why.
 
@@ -35,7 +35,9 @@ Library (`src/lib.rs`):
 - `src/forward.rs` — `--forward`: reading a receiver's address, the
   loop check, and the sockets packets are sent on from.
 - `src/settings.rs` — the TOML settings file.
-- `src/panel.rs` — `PanelType`: Pixel Art or P3 SMD2121 LED.
+- `src/panel.rs` — `PanelType`: Pixel Art or an LED panel type, and
+  `Led`, the LED's geometry in millimetres, one constant a type. A new
+  LED panel is a variant and a `Led`; the shader takes any.
 - `src/cli.rs` — the command line, read by hand.
 
 Binary (`src/main.rs`), all Bevy:
@@ -49,8 +51,10 @@ Binary (`src/main.rs`), all Bevy:
   by a sprite (Pixel Art) or a rectangle with the LED material, as the
   panel type says, placed in the `Room` the controls leave.
 - `src/led.rs`, `src/led.wesl` — the LED material and its shader, which
-  draws each texel as an SMD2121 LED. The shader is embedded in the
-  binary; its geometry and colours are constants at its top.
+  draws each texel as an LED of the geometry it is given (`Shape`, a
+  uniform; the two structs must match field for field). The shader is
+  embedded in the binary; the unlit colours are constants at its top.
+  `package` is a WESL keyword: do not name a field that.
 - `src/controls.rs` — the egui panel and the "nothing arriving" notice.
 
 ## Building
