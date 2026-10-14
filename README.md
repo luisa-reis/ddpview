@@ -15,6 +15,7 @@ LED matrix, before the matrix is on the desk.
   nothing is.
 - Remembers the size and the port between runs.
 - Listens on this computer only, unless asked to listen on the network.
+- Can pass every packet on to other DDP receivers, such as a real panel.
 
 ## Getting started
 
@@ -51,17 +52,19 @@ guesses the panel's size from the first one.
 ## Using it
 
 ```
-ddpview [--size WxH] [--port N] [--bind ADDRESS]
+ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
 ```
 
 No flag is needed. `--size` and `--port` override what is remembered, for
 that run; `--bind 0.0.0.0` listens on the network, so that another
-computer can send to this one, and is never remembered. Tab hides and
-shows the controls.
+computer can send to this one, and is never remembered. `--forward
+192.168.1.50` also sends every packet on to the DDP receiver there, for
+that run. Tab hides and shows the controls.
 
-[docs/using.md](docs/using.md) covers the controls, the size guess and the
-settings file; [docs/ddp.md](docs/ddp.md) the protocol and what `ddpview`
-does with each part of it, lost packets included.
+[docs/using.md](docs/using.md) covers the controls, the size guess, the
+settings file and forwarding; [docs/ddp.md](docs/ddp.md) the protocol and
+what `ddpview` does with each part of it, lost packets and forwarding
+included.
 
 ## Developing
 
@@ -69,8 +72,9 @@ does with each part of it, lost packets included.
 ./check.sh    # formatting, lints and tests
 ```
 
-The receiver (`src/ddp.rs`, `src/size.rs`, `src/listener.rs`) is plain
-Rust with no Bevy in it and is tested on its own; the window is the rest.
+The receiver (`src/ddp.rs`, `src/size.rs`, `src/listener.rs`,
+`src/forward.rs`) is plain Rust with no Bevy in it and is tested on its
+own; the window is the rest.
 [CLAUDE.md](CLAUDE.md) has the layout.
 
 ## Licence

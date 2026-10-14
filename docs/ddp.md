@@ -78,6 +78,31 @@ data (480 RGB pixels) so that it fits a 1,500-byte Ethernet MTU.
   control, 250 config, 251 status), which are left alone.
 - **Query, reply, storage**: left alone. `ddpview` sends nothing back.
 
+## Forwarding
+
+With `--forward`, every datagram that is DDP is also sent on to each
+receiver named, byte for byte as it came, before `ddpview` reads it into
+its own buffer. So each receiver gets the sender's packets, not
+`ddpview`'s idea of them: lost packets stay lost, out-of-order ones stay
+out of order, and the sequence numbers, push flags, timecodes and IDs,
+JSON ones included, are the sender's.
+
+- Packets from **every sender** are passed on, interleaved as they came.
+- Datagrams that are **not DDP** are not passed on.
+- They leave from a port the system picks, not from 4048, so a receiver
+  sees `ddpview` as the sender, and **replies** to a query go to
+  `ddpview`, which drops them. A sender that queries a display through
+  `ddpview` gets no answer.
+- A receiver that cannot be reached does not hold up the others or the
+  window: the failure is counted in the controls with the last error.
+  Most unreachable receivers do not fail at all: UDP sends without
+  knowing whether anyone is listening.
+- **Forwarding to itself** is refused: the port is not listened on, and
+  the controls say why. That is the same port at the same address, or at
+  `127.0.0.1` when listening on every address. Forwarding to this
+  computer's own network address on the same port, while listening on
+  every address, is not caught, and sends every packet round for ever.
+
 ## Lost and late packets
 
 UDP delivers a packet whole or not at all, and in any order. The buffer
@@ -116,6 +141,7 @@ frames back would trade a stale patch for a stutter.
 ## What it does not do
 
 - Answer queries or announce itself (DDP's JSON status and discovery).
+- Pass replies back from a receiver forwarded to.
 - Bit depths other than 8, HSL, or greyscale: all are read as 8-bit RGB.
 - Use the timecode to synchronise.
 - IPv6 unless asked: it binds `127.0.0.1` by default, so a sender given

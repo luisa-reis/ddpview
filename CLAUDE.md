@@ -28,8 +28,11 @@ Library (`src/lib.rs`):
   `Assembler` is the display's buffer and gives a `Frame` on a push.
 - `src/size.rs` — `Size`, the presets, `guess` (a size from a pixel
   count) and `scale_to_fit`.
-- `src/listener.rs` — the UDP socket on a thread of its own; keeps the
-  newest frame and the counts, and calls back for each frame.
+- `src/listener.rs` — the UDP socket on a thread of its own; forwards
+  each DDP packet, keeps the newest frame and the counts, and calls back
+  for each frame.
+- `src/forward.rs` — `--forward`: reading a receiver's address, the
+  loop check, and the sockets packets are sent on from.
 - `src/settings.rs` — the TOML settings file.
 - `src/cli.rs` — the command line, read by hand.
 

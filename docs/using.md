@@ -71,6 +71,32 @@ same computer can send to it.
   an address of the computer's own listens on that network. Anything that
   can reach the port can then draw on the panel: DDP has no security.
 
+## Forwarding
+
+`--forward HOST[:PORT]` sends every DDP packet that arrives on to another
+DDP receiver as well, unchanged: a panel on the desk, or another
+`ddpview`, shows the same stream as the window.
+
+```sh
+ddpview --forward 192.168.1.50                # a WLED device, port 4048
+ddpview --forward wled-desk.local --forward 127.0.0.1:4049
+```
+
+The host is a name or an IP address, with the port after a colon when it
+is not 4048 (an IPv6 address with a port goes in brackets:
+`[fd00::50]:4049`). A name is looked up once, at the start, and the IPv4
+address taken if there is one. `--forward` can be given more than once.
+
+Forwarding is for the run only, never remembered, like `--bind`: it sends
+to the network. The controls show **Forwarding** with each receiver, the
+packets passed on, and, if any could not be sent, how many and the last
+error. [ddp.md](ddp.md#forwarding) has what exactly is passed on.
+
+A receiver on this computer cannot share the port `ddpview` listens on:
+run it on another port and forward to that. Forwarding to `ddpview`'s
+own address and port is refused, as it would send every packet round in
+a loop.
+
 ## Arriving
 
 - **Frames a second**, measured over the last two seconds.
@@ -87,7 +113,7 @@ frame in view.
 ## Flags
 
 ```
-ddpview [--size WxH] [--port N] [--bind ADDRESS]
+ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
 ```
 
 | Flag | Meaning |
@@ -95,9 +121,11 @@ ddpview [--size WxH] [--port N] [--bind ADDRESS]
 | `--size WxH` | Holds the panel at this size for the run, e.g. `--size 128x64` |
 | `--port N` | Listens on this port for the run |
 | `--bind ADDRESS` | Listens on this address; the default is `127.0.0.1` |
+| `--forward HOST[:PORT]` | Also sends every DDP packet on to this receiver; may be repeated |
 | `--help`, `--version` | Print and leave |
 
-Flags override what is remembered without changing it. A size or port
+Flags override what is remembered without changing it; `--bind` and
+`--forward` are never remembered. A size or port
 then set in the window is remembered as usual.
 
 ## The settings file
