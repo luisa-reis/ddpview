@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use ddpview::panel::PanelType;
 use ddpview::size::{Size, MAX_SIDE, PRESETS};
 use egui::{Align2, Color32, RichText};
 
@@ -81,6 +82,7 @@ fn draw(
 fn panel(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session, placed: &Placed) {
     ui.add_space(6.0);
     ui.heading("Panel");
+    panel_type(ui, session);
     size(ui, session);
     ui.label(RichText::new(scale_text(placed.scale)).weak());
 
@@ -105,6 +107,29 @@ fn panel(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session, plac
         ui.add_space(6.0);
         ui.label(RichText::new("Tab hides these controls").weak());
     });
+}
+
+/// What the pixels look like.
+fn panel_type(ui: &mut egui::Ui, session: &mut Session) {
+    let mut picked = session.panel;
+    egui::ComboBox::from_id_salt("panel type")
+        .selected_text(picked.to_string())
+        .width(160.0)
+        .show_ui(ui, |ui| {
+            for panel in PanelType::ALL {
+                ui.selectable_value(&mut picked, panel, panel.to_string());
+            }
+        });
+    session.set_panel(picked);
+    if let Some(pitch) = picked.pitch_mm() {
+        let (w, h) = (session.size.width, session.size.height);
+        let text = format!(
+            "{pitch} mm apart: {:.0} × {:.0} mm",
+            w as f32 * pitch,
+            h as f32 * pitch
+        );
+        ui.label(RichText::new(text).weak());
+    }
 }
 
 /// The size: typed, picked from the presets, or guessed.

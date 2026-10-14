@@ -4,6 +4,7 @@
 //! picture (`view`) and the controls (`controls`).
 
 mod controls;
+mod led;
 mod session;
 mod view;
 
@@ -90,7 +91,7 @@ fn main() -> ExitCode {
         let _ = proxy.send_event(WinitUserEvent::WakeUp);
     });
     app.insert_resource(Session::new(options, settings, path, wake))
-        .add_plugins((session::plugin, view::plugin, controls::plugin))
+        .add_plugins((session::plugin, led::plugin, view::plugin, controls::plugin))
         .run();
     ExitCode::SUCCESS
 }

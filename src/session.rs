@@ -12,6 +12,7 @@ use bevy::prelude::*;
 use ddpview::cli::Options;
 use ddpview::ddp::Frame;
 use ddpview::listener::{Listener, Status};
+use ddpview::panel::PanelType;
 use ddpview::settings::Settings;
 use ddpview::size::{guess, Guess, Size};
 
@@ -46,6 +47,8 @@ pub struct Session {
     pub size: Size,
     /// Whether the size follows a guess from the frames.
     pub auto: bool,
+    /// What the pixels look like.
+    pub panel: PanelType,
     /// The guess in force, and the pixel count it was made for.
     pub guess: Option<(usize, Guess)>,
     /// The last frame shown.
@@ -76,6 +79,7 @@ impl Session {
             forward: options.forward,
             size: options.size.unwrap_or(settings.size()),
             auto: options.size.is_none() && settings.auto_size,
+            panel: settings.panel,
             guess: None,
             frame: None,
             redraw: true,
@@ -145,6 +149,16 @@ impl Session {
         self.guess = None;
         self.follow_guess();
         self.resize(self.size);
+    }
+
+    /// Shows the panel as another type, and remembers it.
+    pub fn set_panel(&mut self, panel: PanelType) {
+        if panel == self.panel {
+            return;
+        }
+        self.panel = panel;
+        self.remembered.panel = panel;
+        self.save();
     }
 
     /// In auto, takes the size guessed for the last frame's pixel count,

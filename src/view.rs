@@ -1,14 +1,16 @@
-//! The picture: the panel as plain square pixels, as large as fits. The
-//! frame is kept in a texture (`Picture`) and drawn by one sprite; another
-//! way of drawing the panel would sample the same texture and replace this
-//! file.
+//! The picture: the panel, as large as fits. The frame is kept in a
+//! texture (`Picture`), drawn either by a sprite as plain square pixels or
+//! by a rectangle with the LED material (`led.rs`), as the panel type
+//! says. Both are placed alike; one is shown.
 
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::PrimaryWindow;
+use ddpview::panel::PanelType;
 use ddpview::size::Size;
 
+use crate::led::LedMaterial;
 use crate::session::Session;
 
 /// The frame as a texture, one texel a pixel, the size of the panel.
@@ -33,11 +35,14 @@ pub struct Placed {
 #[derive(Component)]
 struct PanelSprite;
 
+#[derive(Component)]
+struct PanelLeds;
+
 pub fn plugin(app: &mut App) {
     app.init_resource::<Room>()
         .init_resource::<Placed>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (paint, place));
+        .add_systems(Update, (paint, show, place));
 }
 
 /// A panel's pixels as a texture. The bytes are sRGB, as a sender means
@@ -60,16 +65,58 @@ fn black(size: Size) -> Vec<u8> {
     [0, 0, 0, 255].repeat(size.pixels())
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, session: Res<Session>) {
+fn setup(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<LedMaterial>>,
+    session: Res<Session>,
+) {
     let picture = images.add(image(session.size, black(session.size)));
     commands.spawn(Camera2d);
     commands.spawn((Sprite::from_image(picture.clone()), PanelSprite));
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial2d(materials.add(LedMaterial {
+            size: dimensions(session.size),
+            picture: picture.clone(),
+        })),
+        PanelLeds,
+    ));
     commands.insert_resource(Picture(picture));
+}
+
+fn dimensions(size: Size) -> Vec2 {
+    Vec2::new(size.width as f32, size.height as f32)
+}
+
+/// Shows the drawing the panel type asks for, and hides the other.
+fn show(
+    session: Res<Session>,
+    mut sprite: Single<&mut Visibility, (With<PanelSprite>, Without<PanelLeds>)>,
+    mut leds: Single<&mut Visibility, With<PanelLeds>>,
+) {
+    let pixel_art = session.panel == PanelType::PixelArt;
+    let shown = |on| {
+        if on {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        }
+    };
+    sprite.set_if_neq(shown(pixel_art));
+    leds.set_if_neq(shown(!pixel_art));
 }
 
 /// Copies the frame into the texture when there is a new one or the panel
 /// changed size. The frame is cut to the panel or padded with black.
-fn paint(mut session: ResMut<Session>, picture: Res<Picture>, mut images: ResMut<Assets<Image>>) {
+fn paint(
+    mut session: ResMut<Session>,
+    picture: Res<Picture>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<LedMaterial>>,
+    leds: Single<&MeshMaterial2d<LedMaterial>>,
+) {
     if !session.redraw {
         return;
     }
@@ -82,6 +129,11 @@ fn paint(mut session: ResMut<Session>, picture: Res<Picture>, mut images: ResMut
     if let Some(mut picture) = images.get_mut(&picture.0) {
         *picture = image(size, rgba);
     }
+    // Touched even when the size is the same, so that the material is
+    // prepared again with the new texture.
+    if let Some(mut material) = materials.get_mut(&leds.0) {
+        material.size = dimensions(size);
+    }
 }
 
 /// Sizes and places the sprite in the room it has: centred, each pixel a
@@ -93,6 +145,7 @@ fn place(
     window: Single<&Window, With<PrimaryWindow>>,
     mut placed: ResMut<Placed>,
     sprite: Single<(&mut Sprite, &mut Transform), With<PanelSprite>>,
+    leds: Single<&mut Transform, (With<PanelLeds>, Without<PanelSprite>)>,
 ) {
     let factor = window.scale_factor();
     let size = session.size;
@@ -101,7 +154,7 @@ fn place(
     let max = (room.max * factor).floor();
     let space = (max - min).max(Vec2::ZERO);
     let scale = size.scale_to_fit((space.x as u32, space.y as u32));
-    let drawn = Vec2::new(size.width as f32, size.height as f32) * scale;
+    let drawn = dimensions(size) * scale;
     let corner = min + ((space - drawn) / 2.0).floor();
     // And back to the camera's: logical pixels from the window's centre,
     // y upwards.
@@ -114,5 +167,9 @@ fn place(
         window_size.y / 2.0 - centre.y,
         0.0,
     );
+    // The LEDs' rectangle is 1 by 1: its scale is its size.
+    let mut leds = leds.into_inner();
+    leds.translation = transform.translation;
+    leds.scale = (drawn / factor).extend(1.0);
     placed.scale = scale;
 }
