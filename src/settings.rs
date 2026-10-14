@@ -1,5 +1,5 @@
-//! What is remembered between runs: the port and the panel's size, in a
-//! small TOML file in the user's configuration directory.
+//! What is remembered between runs: the port and the panel's size and
+//! type, in a small TOML file in the user's configuration directory.
 
 use std::fs;
 use std::io;
@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::ddp;
+use crate::panel::PanelType;
 use crate::size::Size;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,6 +22,8 @@ pub struct Settings {
     /// The size last shown: the one set, or the last guess.
     pub width: u32,
     pub height: u32,
+    /// What the pixels look like.
+    pub panel: PanelType,
 }
 
 impl Default for Settings {
@@ -30,6 +33,7 @@ impl Default for Settings {
             auto_size: true,
             width: 64,
             height: 64,
+            panel: PanelType::PixelArt,
         }
     }
 }
@@ -108,12 +112,13 @@ mod tests {
             auto_size: false,
             width: 128,
             height: 64,
+            panel: PanelType::P3Smd2121,
         };
         settings.save(&path).expect("the folder is made as needed");
         assert_eq!(Settings::load(&path), (settings, None));
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\n",
+            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\n",
             "plain enough to edit by hand"
         );
         assert!(!path.with_extension("toml.tmp").exists());
@@ -148,6 +153,7 @@ mod tests {
             "width = 0\n",
             "height = 5000\n",
             "port = 0\n",
+            "panel = \"p10\"\n",
             "not toml",
         ] {
             fs::write(&path, bad).unwrap();
@@ -165,8 +171,8 @@ mod tests {
     fn the_defaults_are_ddp_on_a_64x64_panel_guessed() {
         let d = Settings::default();
         assert_eq!(
-            (d.port, d.auto_size, d.size()),
-            (4048, true, Size::new(64, 64))
+            (d.port, d.auto_size, d.size(), d.panel),
+            (4048, true, Size::new(64, 64), PanelType::PixelArt)
         );
     }
 }

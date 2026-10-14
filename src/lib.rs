@@ -5,5 +5,6 @@ pub mod cli;
 pub mod ddp;
 pub mod forward;
 pub mod listener;
+pub mod panel;
 pub mod settings;
 pub mod size;
