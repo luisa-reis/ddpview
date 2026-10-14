@@ -12,7 +12,8 @@ Context for Claude Code sessions working on ddpview.
 - Rust, with Bevy for the window and egui (bevy_egui) for the controls.
   Bevy was chosen on purpose, for the 3D rendering planned next; do not
   swap it for something lighter.
-- The first version shows plain square pixels. What comes later, in
+- It shows plain square pixels, or a flat face-on LED panel drawn by a
+  shader (P3 SMD2121), as the user picks. What comes later, in
   order, is in the todo file, `../ddpview-todo.md` (outside the
   repository), which also records what was decided and why.
 
@@ -34,6 +35,7 @@ Library (`src/lib.rs`):
 - `src/forward.rs` — `--forward`: reading a receiver's address, the
   loop check, and the sockets packets are sent on from.
 - `src/settings.rs` — the TOML settings file.
+- `src/panel.rs` — `PanelType`: Pixel Art or P3 SMD2121 LED.
 - `src/cli.rs` — the command line, read by hand.
 
 Binary (`src/main.rs`), all Bevy:
@@ -43,9 +45,12 @@ Binary (`src/main.rs`), all Bevy:
 - `src/session.rs` — `Session`, the one resource the rest works from: the
   listener, size, last frame, what is remembered. The controls change it
   only through its methods, which also save.
-- `src/view.rs` — the picture: the frame as a texture (`Picture`) on one
-  sprite, placed in the `Room` the controls leave. The only file that
-  draws the panel.
+- `src/view.rs` — the picture: the frame as a texture (`Picture`), drawn
+  by a sprite (Pixel Art) or a rectangle with the LED material, as the
+  panel type says, placed in the `Room` the controls leave.
+- `src/led.rs`, `src/led.wesl` — the LED material and its shader, which
+  draws each texel as an SMD2121 LED. The shader is embedded in the
+  binary; its geometry and colours are constants at its top.
 - `src/controls.rs` — the egui panel and the "nothing arriving" notice.
 
 ## Building

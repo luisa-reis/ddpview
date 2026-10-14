@@ -8,12 +8,13 @@ LED matrix, before the matrix is on the desk.
 ![A 64×64 frame in the window, with the controls beside it](docs/window.png)
 
 - Receives DDP on UDP port 4048, frames of any number of packets.
-- Shows the panel as plain square pixels, as large as fits the window.
+- Shows the panel as plain square pixels, or as a P3 LED matrix of
+  SMD2121 LEDs, as large as fits the window.
 - The panel's size is typed in, picked from presets, or guessed from the
   number of pixels in a frame.
 - Shows the frame rate arriving and who is sending, and says so when
   nothing is.
-- Remembers the size and the port between runs.
+- Remembers the size, the panel type and the port between runs.
 - Listens on this computer only, unless asked to listen on the network.
 - Can pass every packet on to other DDP receivers, such as a real panel.
 

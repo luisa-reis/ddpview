@@ -2,17 +2,40 @@
 
 ## The window
 
-The picture is the panel: one square per pixel, with no smoothing. Each
-pixel is a whole number of screen pixels wide, the largest that fits, so
-every pixel is the same size and the picture is centred with a margin
-left over. A panel too big for the window is shrunk to fit, and only then
-are pixels not whole.
+The picture is the panel: one square per pixel, with no smoothing, or
+one LED per pixel (see the panel's type, below). Each pixel is a whole
+number of screen pixels wide, the largest that fits, so every pixel is
+the same size and the picture is centred with a margin left over. A
+panel too big for the window is shrunk to fit, and only then are pixels
+not whole.
 
 The controls are down the right. **Tab** hides them, giving the panel the
 whole window, and shows them again.
 
 The window redraws when a frame arrives or when it is touched, and a few
 times a second otherwise, whether or not it has the keyboard.
+
+## The panel's type
+
+The first control under **Panel** sets what the pixels look like:
+
+- **Pixel Art**: plain square pixels touching each other, the colours
+  exactly as sent. The default.
+- **P3 SMD2121 LED**: the panel as an LED matrix at 3 mm pitch, seen
+  face-on. Each pixel is a black SMD2121 package, 2.1 mm square, with a
+  round lens over a red, a green and a blue die; each die is lit by its
+  own channel, and its light spreads a little through the lens. The gaps
+  between packages are dark board, and an unlit LED still shows faintly,
+  so the grid stays visible on black. The controls give the panel's
+  size in millimetres.
+
+The LED look is fitted to the window as the plain pixels are, so 3 mm
+sets the proportion of LED to gap, not the size on screen. Small on
+screen, the dies are a screen pixel or less, and the panel looks darker
+than Pixel Art: lit dies cover less of each cell. White shows as three
+coloured dots up close, as on a real panel.
+
+The type is remembered.
 
 ## The panel's size
 
@@ -141,10 +164,12 @@ port = 4048
 auto_size = true
 width = 64
 height = 64
+panel = "pixel-art"
 ```
 
 `auto_size` is "Guess from the frames"; `width` and `height` are the size
-set, or the last guess, which is what the window opens at. The file is
+set, or the last guess, which is what the window opens at. `panel` is
+`"pixel-art"` or `"p3-smd2121"`. The file is
 written when one of these changes in the window, and can be edited by hand
 while `ddpview` is not running. Settings left out take their defaults, the
 ones above. A file that cannot be read is ignored, with a message on the
