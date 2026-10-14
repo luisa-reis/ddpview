@@ -25,6 +25,13 @@ struct Shape {
     // the spread is beside the die itself.
     spread: f32,
     glow: f32,
+    // The halo: how far light from a die reaches across the package and
+    // board, and how bright it is at the die; 0 when the halo is off.
+    halo_spread: f32,
+    halo: f32,
+    // What the LEDs' own light is multiplied by: 1, or more when they
+    // are made brighter.
+    gain: f32,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> shape: Shape;
@@ -58,6 +65,17 @@ fn spread(p: vec2<f32>) -> f32 {
     return exp(-dot(p, p) / (shape.spread * shape.spread));
 }
 
+fn halo(p: vec2<f32>) -> f32 {
+    return exp(-dot(p, p) / (shape.halo_spread * shape.halo_spread));
+}
+
+// Light past what the screen can show, scaled down as a whole rather
+// than cut off channel by channel: an orange made brighter stays orange
+// instead of turning yellow.
+fn within_white(light: vec3<f32>) -> vec3<f32> {
+    return light / max(1.0, max(light.r, max(light.g, light.b)));
+}
+
 // The light leaving one point of the panel. `cell` is in pixels from the
 // panel's top left.
 fn shade(cell: vec2<f32>) -> vec3<f32> {
@@ -67,22 +85,28 @@ fn shade(cell: vec2<f32>) -> vec3<f32> {
     let pixel = vec2<i32>(floor(cell));
     let colour = textureLoad(picture, pixel, 0).rgb;
     let p = (fract(cell) - 0.5) * shape.pitch;
-    if rounded_rectangle(p, shape.body, shape.corner) == 0.0 {
-        return BOARD;
-    }
-    if length(p) > shape.lens {
-        return FACE;
-    }
     let r = shape.red - p;
     let g = shape.green - p;
     let b = shape.blue - p;
-    let dies = vec3(
-        square(r, shape.die),
-        square(g, shape.die),
-        square(b, shape.die),
-    );
-    let glow = shape.glow * vec3(spread(r), spread(g), spread(b));
-    return CUP + colour * max(dies, glow);
+    // The halo reaches over everything in the cell, lens or not. Light
+    // from a neighbouring LED's halo is left out: by the edge of the cell
+    // there is little of it.
+    var lit = shape.halo * vec3(halo(r), halo(g), halo(b));
+    var surface = BOARD;
+    if rounded_rectangle(p, shape.body, shape.corner) == 1.0 {
+        surface = FACE;
+        if length(p) <= shape.lens {
+            surface = CUP;
+            let dies = vec3(
+                square(r, shape.die),
+                square(g, shape.die),
+                square(b, shape.die),
+            );
+            let glow = shape.glow * vec3(spread(r), spread(g), spread(b));
+            lit += max(dies, glow);
+        }
+    }
+    return within_white(surface + shape.gain * colour * lit);
 }
 
 @fragment

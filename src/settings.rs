@@ -24,6 +24,10 @@ pub struct Settings {
     pub height: u32,
     /// What the pixels look like.
     pub panel: PanelType,
+    /// For LED panel types: a halo of light around each LED, and the LEDs
+    /// made brighter than a screen's white allows.
+    pub led_halo: bool,
+    pub led_brighter: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +38,8 @@ impl Default for Settings {
             width: 64,
             height: 64,
             panel: PanelType::PixelArt,
+            led_halo: true,
+            led_brighter: true,
         }
     }
 }
@@ -113,12 +119,14 @@ mod tests {
             width: 128,
             height: 64,
             panel: PanelType::P3Smd2121,
+            led_halo: false,
+            led_brighter: true,
         };
         settings.save(&path).expect("the folder is made as needed");
         assert_eq!(Settings::load(&path), (settings, None));
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\n",
+            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\nled_halo = false\nled_brighter = true\n",
             "plain enough to edit by hand"
         );
         assert!(!path.with_extension("toml.tmp").exists());
@@ -173,6 +181,10 @@ mod tests {
         assert_eq!(
             (d.port, d.auto_size, d.size(), d.panel),
             (4048, true, Size::new(64, 64), PanelType::PixelArt)
+        );
+        assert!(
+            d.led_halo && d.led_brighter,
+            "LEDs look dark on a screen without both"
         );
     }
 }

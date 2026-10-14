@@ -41,7 +41,18 @@ pub struct Led {
     /// that is beside the die itself.
     pub spread: f32,
     pub glow: f32,
+    /// The halo, when it is on: how far a die's light reaches across the
+    /// package and board, and how bright that is at the die.
+    pub halo_spread: f32,
+    pub halo: f32,
 }
+
+/// What "Brighter" multiplies the LEDs' own light by. A real LED's dies
+/// are far brighter than a screen's white; on a screen the light of a
+/// small die is cut off at white and the panel looks dark. This puts some
+/// of it back, a fully lit LED then giving about a quarter of the light
+/// of a plain white pixel instead of a sixteenth.
+pub const BRIGHTER: f32 = 4.0;
 
 /// SMD2121: a black package 2.1 mm square, the lens 1.6 mm across, dies
 /// 0.3 mm: red top left, green right, blue bottom left.
@@ -56,6 +67,8 @@ const SMD2121: Led = Led {
     blue: [-0.32, 0.3],
     spread: 0.5,
     glow: 0.85,
+    halo_spread: 0.75,
+    halo: 0.3,
 };
 
 /// SMD1415: a black package 1.4 mm wide and 1.5 mm tall, its insides
@@ -72,6 +85,8 @@ const SMD1415: Led = Led {
     blue: [-0.21, 0.2],
     spread: 0.33,
     glow: 0.85,
+    halo_spread: 0.47,
+    halo: 0.3,
 };
 
 impl PanelType {
@@ -146,6 +161,10 @@ mod tests {
             let (w, h) = (led.package[0], led.package[1]);
             assert!(w < led.pitch && h < led.pitch, "{panel}: a gap between");
             assert!(2.0 * led.lens <= w.min(h), "{panel}: the lens on the face");
+            assert!(
+                2.0 * led.halo_spread < led.pitch,
+                "{panel}: the halo has faded by the edge of the cell"
+            );
             for at in [led.red, led.green, led.blue] {
                 let reach = at[0].hypot(at[1]) + led.die / 2.0 * 2f32.sqrt();
                 assert!(reach <= led.lens, "{panel}: dies under the lens");

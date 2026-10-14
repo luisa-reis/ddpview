@@ -98,7 +98,12 @@ fn shape(session: &Session) -> Shape {
         .led()
         .or(PanelType::P3Smd2121.led())
         .expect("an LED panel type");
-    Shape::new(dimensions(session.size), led)
+    Shape::new(
+        dimensions(session.size),
+        led,
+        session.led_halo,
+        session.led_brighter,
+    )
 }
 
 /// Shows the drawing the panel type asks for, and hides the other.

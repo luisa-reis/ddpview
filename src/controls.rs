@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
-use ddpview::panel::PanelType;
+use ddpview::panel::{PanelType, BRIGHTER};
 use ddpview::size::{Size, MAX_SIDE, PRESETS};
 use egui::{Align2, Color32, RichText};
 
@@ -129,6 +129,12 @@ fn panel_type(ui: &mut egui::Ui, session: &mut Session) {
             h as f32 * pitch
         );
         ui.label(RichText::new(text).weak());
+        let mut halo = session.led_halo;
+        ui.checkbox(&mut halo, "Halo around each LED");
+        session.set_led_halo(halo);
+        let mut brighter = session.led_brighter;
+        ui.checkbox(&mut brighter, format!("Brighter ({BRIGHTER}×)"));
+        session.set_led_brighter(brighter);
     }
 }
 

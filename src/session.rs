@@ -49,6 +49,9 @@ pub struct Session {
     pub auto: bool,
     /// What the pixels look like.
     pub panel: PanelType,
+    /// For LED panel types: a halo around each LED, and brighter LEDs.
+    pub led_halo: bool,
+    pub led_brighter: bool,
     /// The guess in force, and the pixel count it was made for.
     pub guess: Option<(usize, Guess)>,
     /// The last frame shown.
@@ -80,6 +83,8 @@ impl Session {
             size: options.size.unwrap_or(settings.size()),
             auto: options.size.is_none() && settings.auto_size,
             panel: settings.panel,
+            led_halo: settings.led_halo,
+            led_brighter: settings.led_brighter,
             guess: None,
             frame: None,
             redraw: true,
@@ -159,6 +164,29 @@ impl Session {
         self.panel = panel;
         self.redraw = true;
         self.remembered.panel = panel;
+        self.save();
+    }
+
+    /// Turns the LEDs' halo on or off, and remembers it.
+    pub fn set_led_halo(&mut self, on: bool) {
+        if on == self.led_halo {
+            return;
+        }
+        self.led_halo = on;
+        self.redraw = true;
+        self.remembered.led_halo = on;
+        self.save();
+    }
+
+    /// Makes the LEDs brighter than a screen's white allows, or not, and
+    /// remembers it.
+    pub fn set_led_brighter(&mut self, on: bool) {
+        if on == self.led_brighter {
+            return;
+        }
+        self.led_brighter = on;
+        self.redraw = true;
+        self.remembered.led_brighter = on;
         self.save();
     }
 
