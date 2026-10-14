@@ -157,6 +157,7 @@ impl Session {
             return;
         }
         self.panel = panel;
+        self.redraw = true;
         self.remembered.panel = panel;
         self.save();
     }

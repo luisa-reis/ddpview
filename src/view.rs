@@ -10,7 +10,7 @@ use bevy::window::PrimaryWindow;
 use ddpview::panel::PanelType;
 use ddpview::size::Size;
 
-use crate::led::LedMaterial;
+use crate::led::{LedMaterial, Shape};
 use crate::session::Session;
 
 /// The frame as a texture, one texel a pixel, the size of the panel.
@@ -78,7 +78,7 @@ fn setup(
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(1.0, 1.0))),
         MeshMaterial2d(materials.add(LedMaterial {
-            size: dimensions(session.size),
+            shape: shape(&session),
             picture: picture.clone(),
         })),
         PanelLeds,
@@ -88,6 +88,17 @@ fn setup(
 
 fn dimensions(size: Size) -> Vec2 {
     Vec2::new(size.width as f32, size.height as f32)
+}
+
+/// The LED material's shape for the session's panel. Pixel Art has no
+/// LED and does not show the material; it is given one all the same.
+fn shape(session: &Session) -> Shape {
+    let led = session
+        .panel
+        .led()
+        .or(PanelType::P3Smd2121.led())
+        .expect("an LED panel type");
+    Shape::new(dimensions(session.size), led)
 }
 
 /// Shows the drawing the panel type asks for, and hides the other.
@@ -109,7 +120,7 @@ fn show(
 }
 
 /// Copies the frame into the texture when there is a new one or the panel
-/// changed size. The frame is cut to the panel or padded with black.
+/// changed size or type. The frame is cut to the panel or padded with black.
 fn paint(
     mut session: ResMut<Session>,
     picture: Res<Picture>,
@@ -129,10 +140,10 @@ fn paint(
     if let Some(mut picture) = images.get_mut(&picture.0) {
         *picture = image(size, rgba);
     }
-    // Touched even when the size is the same, so that the material is
-    // prepared again with the new texture.
+    // Touched even when nothing about it changed, so that the material
+    // is prepared again with the new texture.
     if let Some(mut material) = materials.get_mut(&leds.0) {
-        material.size = dimensions(size);
+        material.shape = shape(&session);
     }
 }
 
