@@ -31,17 +31,23 @@ pub struct Led {
     /// The package, width and height, and the rounding of its corners.
     pub package: [f32; 2],
     pub corner: f32,
-    /// The radius of the clear lens over the dies.
-    pub lens: f32,
-    /// A die's side, and where the red, green and blue ones sit.
-    pub die: f32,
+    /// The window over the dies, width and height, and the rounding of
+    /// its corners: a circle when the rounding is half of each side.
+    pub window: [f32; 2],
+    pub window_corner: f32,
+    /// A die's width and height, and where the red, green and blue ones
+    /// sit.
+    pub die: [f32; 2],
     pub red: [f32; 2],
     pub green: [f32; 2],
     pub blue: [f32; 2],
-    /// How far light from a die spreads through the lens, and how bright
-    /// that is beside the die itself.
+    /// How far light from a die spreads through the window, and how
+    /// bright that is beside the die itself.
     pub spread: f32,
     pub glow: f32,
+    /// How much a diffuser in the window blurs the dies into their
+    /// spread light: 0 for clear, 1 for only the spread light seen.
+    pub diffuser: f32,
     /// The halo, when it is on: how far a die's light reaches across the
     /// package and board, and how bright that is at the die.
     pub halo_spread: f32,
@@ -55,37 +61,46 @@ pub struct Led {
 /// of a plain white pixel instead of a sixteenth.
 pub const BRIGHTER: f32 = 4.0;
 
-/// SMD2121: a black package 2.1 mm square, the lens 1.6 mm across, dies
-/// 0.3 mm: red top left, green right, blue bottom left.
+/// SMD2121: a black package 2.1 mm square, a round clear lens 1.6 mm
+/// across, dies 0.3 mm: red top left, green right, blue bottom left.
 const SMD2121: Led = Led {
     pitch: 3.0,
     package: [2.1, 2.1],
     corner: 0.15,
-    lens: 0.8,
-    die: 0.3,
+    window: [1.6, 1.6],
+    window_corner: 0.8,
+    die: [0.3, 0.3],
     red: [-0.32, -0.3],
     green: [0.34, 0.0],
     blue: [-0.32, 0.3],
     spread: 0.5,
     glow: 0.85,
+    diffuser: 0.0,
     halo_spread: 0.75,
     halo: 0.3,
 };
 
-/// SMD1515: a black package 1.5 mm square, its insides
-/// those of the SMD2121 at two thirds, the dies a little less shrunk:
-/// a die is much the same size whatever package it is in.
+/// SMD1515, from NationStar's drawings (NH-B1515RGBA-HF and -GF,
+/// REESTAR RS-1515MBAM, which agree): a black package 1.6 mm wide and
+/// 1.5 mm tall with square corners; a rounded-square cup about 1.3 by
+/// 1.22 mm at the top, filled with black matte epoxy with a diffuser;
+/// dies about 0.15 by 0.11 mm in a column down the middle, blue 0.25 mm
+/// above the centre, green on it, red 0.24 mm below. The spread and
+/// diffuser are judged, not measured: the diffuser blurs the dies into
+/// one soft spot that fills much of the cup.
 const SMD1515: Led = Led {
     pitch: 1.875,
-    package: [1.5, 1.5],
-    corner: 0.1,
-    lens: 0.55,
-    die: 0.24,
-    red: [-0.21, -0.2],
-    green: [0.22, 0.0],
-    blue: [-0.21, 0.2],
-    spread: 0.33,
-    glow: 0.85,
+    package: [1.6, 1.5],
+    corner: 0.04,
+    window: [1.3, 1.22],
+    window_corner: 0.3,
+    die: [0.15, 0.11],
+    red: [0.0, 0.24],
+    green: [0.0, 0.0],
+    blue: [0.0, -0.25],
+    spread: 0.6,
+    glow: 0.75,
+    diffuser: 0.7,
     halo_spread: 0.47,
     halo: 0.3,
 };
@@ -162,20 +177,43 @@ mod tests {
         assert_eq!(PanelType::PixelArt.pitch_mm(), None);
     }
 
+    /// As the shader's `rounded_rectangle`.
+    fn in_rounded_rectangle(p: [f32; 2], half: [f32; 2], corner: f32) -> bool {
+        let q = [
+            p[0].abs() - (half[0] - corner),
+            p[1].abs() - (half[1] - corner),
+        ];
+        let outside = q[0].max(0.0).hypot(q[1].max(0.0)) + q[0].max(q[1]).min(0.0) - corner;
+        outside <= 0.0
+    }
+
     #[test]
     fn every_led_fits_in_its_cell() {
         for panel in PanelType::ALL {
             let Some(led) = panel.led() else { continue };
             let (w, h) = (led.package[0], led.package[1]);
             assert!(w < led.pitch && h < led.pitch, "{panel}: a gap between");
-            assert!(2.0 * led.lens <= w.min(h), "{panel}: the lens on the face");
+            assert!(
+                led.window[0] <= w && led.window[1] <= h,
+                "{panel}: the window on the face"
+            );
+            assert!(
+                2.0 * led.window_corner <= led.window[0].min(led.window[1]),
+                "{panel}: the window's corners fit it"
+            );
             assert!(
                 2.0 * led.halo_spread < led.pitch,
                 "{panel}: the halo has faded by the edge of the cell"
             );
+            let half = [led.window[0] / 2.0, led.window[1] / 2.0];
             for at in [led.red, led.green, led.blue] {
-                let reach = at[0].hypot(at[1]) + led.die / 2.0 * 2f32.sqrt();
-                assert!(reach <= led.lens, "{panel}: dies under the lens");
+                for (sx, sy) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)] {
+                    let corner = [at[0] + sx * led.die[0] / 2.0, at[1] + sy * led.die[1] / 2.0];
+                    assert!(
+                        in_rounded_rectangle(corner, half, led.window_corner),
+                        "{panel}: dies under the window"
+                    );
+                }
             }
         }
     }

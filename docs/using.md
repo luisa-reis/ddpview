@@ -27,10 +27,13 @@ The first control under **Panel** sets what the pixels look like:
   own channel, and its light spreads a little through the lens. The gaps
   between packages are dark board, and an unlit LED still shows faintly,
   so the grid stays visible on black.
-- **P1.875 SMD1515 LED**: the same at 1.875 mm pitch, each pixel a black
-  SMD1515 package, 1.5 mm square. The packages fill more
-  of each cell, so the gaps are narrower; the lens and dies are smaller
-  in proportion.
+- **P1.875 SMD1515 LED**: 1.875 mm pitch, each pixel a black SMD1515
+  package 1.6 mm wide and 1.5 mm tall, as in NationStar's drawings. Its
+  window is a rounded-square cup about 1.3 mm across, filled with black
+  epoxy with a diffuser, over a column of tiny dies (blue, green, red,
+  top to bottom). The diffuser blends them, so a lit LED is one soft
+  patch of colour filling the cup, slightly cooler at the top and warmer
+  at the bottom.
 
 For an LED type the controls give the panel's size in millimetres.
 

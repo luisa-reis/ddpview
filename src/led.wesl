@@ -1,5 +1,6 @@
 // A panel of LEDs seen face-on. Each panel pixel is one LED: a black
-// package with a round lens, and under it a red, a green and a blue die,
+// package with a window (a round lens, or a rounded cup), and under it a
+// red, a green and a blue die,
 // each lit by its own channel of the frame. What the LED looks like comes
 // from the panel type (`Shape`). Lengths are in millimetres, measured
 // from the centre of the LED's cell, x to the right and y down.
@@ -16,15 +17,18 @@ struct Shape {
     corner: f32,
     // The package (`package` is a word WESL keeps for itself).
     body: vec2<f32>,
-    lens: f32,
-    die: f32,
+    window: vec2<f32>,
+    window_corner: f32,
+    die: vec2<f32>,
     red: vec2<f32>,
     green: vec2<f32>,
     blue: vec2<f32>,
-    // How far light from a die spreads through the lens, and how bright
+    // How far light from a die spreads through the window, and how bright
     // the spread is beside the die itself.
     spread: f32,
     glow: f32,
+    // How much a diffuser hides the dies themselves: 0 clear, 1 hidden.
+    diffuser: f32,
     // The halo: how far light from a die reaches across the package and
     // board, and how bright it is at the die; 0 when the halo is off.
     halo_spread: f32,
@@ -39,7 +43,7 @@ struct Shape {
 @group(constants::MATERIAL_BIND_GROUP) @binding(1) var picture: texture_2d<f32>;
 
 // Unlit surfaces, linear: the board between packages, the package's
-// face, and the lens, a little lighter for the cup below it.
+// face, and the window, a little lighter for the cup below it.
 const BOARD: vec3<f32> = vec3(0.003, 0.003, 0.0035);
 const FACE: vec3<f32> = vec3(0.012, 0.012, 0.013);
 const CUP: vec3<f32> = vec3(0.022, 0.022, 0.024);
@@ -57,8 +61,8 @@ fn rounded_rectangle(p: vec2<f32>, half: vec2<f32>, corner: f32) -> f32 {
     return select(0.0, 1.0, outside <= 0.0);
 }
 
-fn square(p: vec2<f32>, half: f32) -> f32 {
-    return select(0.0, 1.0, max(abs(p.x), abs(p.y)) <= half);
+fn rectangle(p: vec2<f32>, half: vec2<f32>) -> f32 {
+    return select(0.0, 1.0, all(abs(p) <= half));
 }
 
 fn spread(p: vec2<f32>) -> f32 {
@@ -88,22 +92,24 @@ fn shade(cell: vec2<f32>) -> vec3<f32> {
     let r = shape.red - p;
     let g = shape.green - p;
     let b = shape.blue - p;
-    // The halo reaches over everything in the cell, lens or not. Light
+    // The halo reaches over everything in the cell, window or not. Light
     // from a neighbouring LED's halo is left out: by the edge of the cell
     // there is little of it.
     var lit = shape.halo * vec3(halo(r), halo(g), halo(b));
     var surface = BOARD;
     if rounded_rectangle(p, shape.body, shape.corner) == 1.0 {
         surface = FACE;
-        if length(p) <= shape.lens {
+        if rounded_rectangle(p, shape.window, shape.window_corner) == 1.0 {
             surface = CUP;
             let dies = vec3(
-                square(r, shape.die),
-                square(g, shape.die),
-                square(b, shape.die),
+                rectangle(r, shape.die),
+                rectangle(g, shape.die),
+                rectangle(b, shape.die),
             );
             let glow = shape.glow * vec3(spread(r), spread(g), spread(b));
-            lit += max(dies, glow);
+            // Through a diffuser the dies are seen less sharply, as part
+            // of the spread light.
+            lit += mix(max(dies, glow), glow, shape.diffuser);
         }
     }
     return within_white(surface + shape.gain * colour * lit);
