@@ -5,7 +5,7 @@ protocol that [WLED](https://kno.wled.ge) devices accept over UDP, and
 shows the frames it receives in a window: what a program would put on an
 LED matrix, before the matrix is on the desk.
 
-![A 64×64 frame in the window, with the controls beside it](docs/window.png)
+![A 64×64 frame shown as a P3 panel of SMD2121 LEDs, with the controls beside it](docs/window.png)
 
 - Receives DDP on UDP port 4048, frames of any number of packets.
 - Shows the panel as plain square pixels, or as an LED matrix (P3 with
