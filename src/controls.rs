@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use ddpview::ddp;
 use ddpview::panel::{PanelType, BRIGHTER};
 use ddpview::size::{Size, MAX_SIDE, PRESETS};
 use egui::{Align2, Color32, RichText};
@@ -16,8 +17,10 @@ const WARNING: Color32 = Color32::from_rgb(240, 180, 60);
 #[derive(Resource)]
 struct Controls {
     shown: bool,
-    /// The port as typed, which is applied when the field is left.
+    /// The port and WLED name as typed, which are applied when the field
+    /// is left.
     port: String,
+    name: String,
 }
 
 pub fn plugin(app: &mut App) {
@@ -30,6 +33,7 @@ fn setup(mut commands: Commands, session: Res<Session>) {
     commands.insert_resource(Controls {
         shown: true,
         port: session.port.to_string(),
+        name: session.wled_device().name,
     });
 }
 
@@ -97,6 +101,11 @@ fn panel(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session, plac
         ui.heading("Forwarding");
         forwarding(ui, session);
     }
+
+    ui.add_space(10.0);
+    ui.separator();
+    ui.heading("WLED");
+    wled(ui, controls, session);
 
     ui.add_space(10.0);
     ui.separator();
@@ -259,6 +268,84 @@ fn forwarding(ui: &mut egui::Ui, session: &Session) {
             status.forward_failed
         );
         ui.label(RichText::new(text).color(WARNING));
+    }
+}
+
+/// Answering as a WLED device: whether, the name, where, and whether the
+/// network can find it.
+fn wled(ui: &mut egui::Ui, controls: &mut Controls, session: &mut Session) {
+    let mut on = session.wled;
+    ui.checkbox(&mut on, "Answer as a WLED device");
+    session.set_wled(on);
+    if !session.wled {
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.label("Name");
+        let field = ui.add(egui::TextEdit::singleline(&mut controls.name).desired_width(140.0));
+        if field.lost_focus() {
+            session.set_wled_name(&controls.name);
+            controls.name = session.wled_device().name;
+        }
+    });
+    let Some(address) = session.wled_address() else {
+        let error = session.wled_error.clone().unwrap_or_default();
+        let address = std::net::SocketAddr::new(session.bind, session.http_port);
+        let text = format!("Cannot answer on TCP {address}: {error}");
+        ui.label(RichText::new(text).color(WARNING));
+        return;
+    };
+    ui.label(format!("API on TCP {address}"));
+    if session.wled_refused.is_some() {
+        let mut text = format!(
+            "Port {} was refused, so {}; WLED's clients expect {}.",
+            session.http_port,
+            address.port(),
+            session.http_port
+        );
+        if cfg!(target_os = "macos") {
+            text.push_str(" --bind 0.0.0.0 allows it.");
+        }
+        ui.label(RichText::new(text).weak());
+    }
+    match (session.announced_as(), &session.announce_error) {
+        (Some(host), _) => {
+            ui.label(RichText::new(format!("Announced as {host}")).weak());
+        }
+        (None, Some(error)) => {
+            let text = format!("Not announced: {error}");
+            ui.label(RichText::new(text).color(WARNING));
+        }
+        (None, None) => {
+            let text = "Not announced: only this computer can reach it";
+            ui.label(RichText::new(text).weak());
+        }
+    }
+    if session.port != ddp::PORT {
+        let text = format!(
+            "WLED's clients send DDP to port {}, not {}",
+            ddp::PORT,
+            session.port
+        );
+        ui.label(RichText::new(text).color(WARNING));
+    }
+    let device = session.wled_device();
+    if let Some(from) = device.asked_by {
+        let requests = match device.requests {
+            1 => "1 request".to_string(),
+            n => format!("{n} requests"),
+        };
+        let text = format!("{requests}, the last from {from}");
+        ui.label(RichText::new(text).weak());
+    }
+    if !device.on || device.bri != 255 {
+        let set = if device.on {
+            format!("brightness {} of 255", device.bri)
+        } else {
+            "off".to_string()
+        };
+        let text = format!("A client set it {set}; that is not shown");
+        ui.label(RichText::new(text).weak());
     }
 }
 

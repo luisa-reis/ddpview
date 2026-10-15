@@ -12,6 +12,7 @@ pub const USAGE: &str = "\
 ddpview: a virtual LED panel. Shows the DDP frames sent to it.
 
 Usage: ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
+               [--http-port N]
 
   --size WxH      the panel's size, e.g. 64x64 (otherwise: as remembered,
                   or guessed from the first frame)
@@ -22,11 +23,13 @@ Usage: ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
                   also send every DDP packet, unchanged, to another DDP
                   receiver (port 4048 unless given). May be given more
                   than once
+  --http-port N   the TCP port to answer WLED's API on (otherwise: as
+                  remembered, or 80, which WLED's clients expect)
   --help          this text
   --version       the version
 
---size and --port apply to this run; a size or port set in the window is
-what is remembered. --bind and --forward are never remembered.";
+--size, --port and --http-port apply to this run; a size or port set in
+the window, or http_port in the settings file, is what is remembered. --bind and --forward are never remembered.";
 
 /// Localhost: only programs on this computer can send to it.
 pub const DEFAULT_BIND: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
@@ -38,6 +41,7 @@ pub struct Options {
     pub bind: IpAddr,
     /// Receivers to send every packet on to.
     pub forward: Vec<SocketAddr>,
+    pub http_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +58,7 @@ pub fn parse(args: &[String]) -> Result<Command> {
         port: None,
         bind: DEFAULT_BIND,
         forward: Vec::new(),
+        http_port: None,
     };
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -80,6 +85,11 @@ pub fn parse(args: &[String]) -> Result<Command> {
                 let target = forward::target(text)
                     .with_context(|| format!("--forward cannot send to {text:?}"))?;
                 options.forward.push(target);
+            }
+            "--http-port" => {
+                let port = it.next().and_then(|v| v.parse().ok()).filter(|p| *p != 0);
+                options.http_port =
+                    Some(port.context("--http-port needs a number from 1 to 65535")?);
             }
             "--help" | "-h" => return Ok(Command::Help),
             "--version" | "-V" => return Ok(Command::Version),
@@ -109,17 +119,27 @@ mod tests {
                 port: None,
                 bind: "127.0.0.1".parse().unwrap(),
                 forward: Vec::new(),
+                http_port: None,
             }
         );
     }
 
     #[test]
     fn flags_are_read() {
-        let Command::Run(options) =
-            run(&["--size", "128x64", "--port", "4049", "--bind", "0.0.0.0"]).unwrap()
-        else {
+        let Command::Run(options) = run(&[
+            "--size",
+            "128x64",
+            "--port",
+            "4049",
+            "--bind",
+            "0.0.0.0",
+            "--http-port",
+            "8080",
+        ])
+        .unwrap() else {
             panic!("runs")
         };
+        assert_eq!(options.http_port, Some(8080));
         assert_eq!(options.size, Some(Size::new(128, 64)));
         assert_eq!(options.port, Some(4049));
         assert!(options.bind.is_unspecified());
@@ -153,6 +173,7 @@ mod tests {
             (&["--size", "big"], "--size needs WxH"),
             (&["--port", "0"], "--port needs a number"),
             (&["--port", "70000"], "--port needs a number"),
+            (&["--http-port", "0"], "--http-port needs a number"),
             (&["--bind", "localhost"], "--bind needs an IP address"),
             (&["--forward"], "--forward needs a receiver's address"),
             (&["--forward", "10.0.0.7:0"], "--forward cannot send to"),

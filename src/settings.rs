@@ -1,5 +1,6 @@
-//! What is remembered between runs: the port and the panel's size and
-//! type, in a small TOML file in the user's configuration directory.
+//! What is remembered between runs: the port, the panel's size and type,
+//! and the WLED device ddpview answers as, in a small TOML file in the
+//! user's configuration directory.
 
 use std::fs;
 use std::io;
@@ -10,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use crate::ddp;
 use crate::panel::PanelType;
 use crate::size::Size;
+use crate::wled;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// The UDP port to listen on.
@@ -28,6 +30,14 @@ pub struct Settings {
     /// made brighter than a screen's white allows.
     pub led_halo: bool,
     pub led_brighter: bool,
+    /// Whether to answer as a WLED device, the name it answers with, and
+    /// the made-up card address clients know it by: empty until the first
+    /// run makes one.
+    pub wled: bool,
+    pub wled_name: String,
+    pub wled_mac: String,
+    /// The TCP port WLED's API is served on.
+    pub http_port: u16,
 }
 
 impl Default for Settings {
@@ -40,6 +50,10 @@ impl Default for Settings {
             panel: PanelType::PixelArt,
             led_halo: true,
             led_brighter: true,
+            wled: true,
+            wled_name: "ddpview".into(),
+            wled_mac: String::new(),
+            http_port: wled::HTTP_PORT,
         }
     }
 }
@@ -67,7 +81,11 @@ impl Settings {
             Err(e) => return (Self::default(), Some(format!("{}: {e}", path.display()))),
         };
         match toml::from_str::<Self>(&text) {
-            Ok(settings) if settings.size().fits() && settings.port != 0 => (settings, None),
+            Ok(settings)
+                if settings.size().fits() && settings.port != 0 && settings.http_port != 0 =>
+            {
+                (settings, None)
+            }
             Ok(_) => (
                 Self::default(),
                 Some(format!("{}: a size or port out of range", path.display())),
@@ -121,12 +139,16 @@ mod tests {
             panel: PanelType::P3Smd2121,
             led_halo: false,
             led_brighter: true,
+            wled: false,
+            wled_name: "Kitchen".into(),
+            wled_mac: "021122aabbcc".into(),
+            http_port: 8080,
         };
         settings.save(&path).expect("the folder is made as needed");
-        assert_eq!(Settings::load(&path), (settings, None));
+        assert_eq!(Settings::load(&path), (settings.clone(), None));
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\nled_halo = false\nled_brighter = true\n",
+            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\nled_halo = false\nled_brighter = true\nwled = false\nwled_name = \"Kitchen\"\nwled_mac = \"021122aabbcc\"\nhttp_port = 8080\n",
             "plain enough to edit by hand"
         );
         assert!(!path.with_extension("toml.tmp").exists());
@@ -161,6 +183,7 @@ mod tests {
             "width = 0\n",
             "height = 5000\n",
             "port = 0\n",
+            "http_port = 0\n",
             "panel = \"p10\"\n",
             "not toml",
         ] {
@@ -185,6 +208,10 @@ mod tests {
         assert!(
             d.led_halo && d.led_brighter,
             "LEDs look dark on a screen without both"
+        );
+        assert_eq!(
+            (d.wled, d.wled_name.as_str(), d.http_port),
+            (true, "ddpview", 80)
         );
     }
 }

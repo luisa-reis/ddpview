@@ -1,20 +1,24 @@
 //! One run of the program: the listener, the panel's size and the last
-//! frame, and what of that is remembered. The controls change it through
-//! the methods here, and the view draws from it.
+//! frame, the WLED device it answers as, and what of that is remembered.
+//! The controls change it through the methods here, and the view draws
+//! from it.
 
 use std::collections::VecDeque;
+use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
+use ddpview::announce::Announcement;
 use ddpview::cli::Options;
 use ddpview::ddp::Frame;
 use ddpview::listener::{Listener, Status};
 use ddpview::panel::PanelType;
 use ddpview::settings::Settings;
 use ddpview::size::{guess, Guess, Size};
+use ddpview::wled::{self, Device, Mac};
 
 /// How long without a frame before the stream counts as stopped: the time
 /// after which WLED gives up on a sender and goes back to its presets.
@@ -59,6 +63,18 @@ pub struct Session {
     /// Set when the frame or the size changed, for the view to clear.
     pub redraw: bool,
     pub status: Status,
+    /// Whether to answer as a WLED device, and on which TCP port.
+    pub wled: bool,
+    pub http_port: u16,
+    /// What the WLED device answers with, shared with its server.
+    device: Arc<Mutex<Device>>,
+    server: Option<wled::Server>,
+    /// Why there is no server, and why it is not on the port asked for.
+    pub wled_error: Option<String>,
+    pub wled_refused: Option<String>,
+    announcement: Option<Announcement>,
+    /// Why the device is not announced, when it should be.
+    pub announce_error: Option<String>,
     /// The frame count at moments over the last `RATE_OVER`.
     samples: VecDeque<(Instant, u64)>,
     /// What the settings file holds, which `--size` and `--port` do not
@@ -74,13 +90,16 @@ pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
 impl Session {
     pub fn new(options: Options, settings: Settings, path: Option<PathBuf>, wake: Wake) -> Self {
+        let size = options.size.unwrap_or(settings.size());
+        let mac = Mac::parse(&settings.wled_mac).unwrap_or_else(Mac::random);
+        let device = Device::new(&settings.wled_name, mac, size.width, size.height);
         let mut session = Self {
             listener: None,
             bind_error: None,
             bind: options.bind,
             port: options.port.unwrap_or(settings.port),
             forward: options.forward,
-            size: options.size.unwrap_or(settings.size()),
+            size,
             auto: options.size.is_none() && settings.auto_size,
             panel: settings.panel,
             led_halo: settings.led_halo,
@@ -89,12 +108,21 @@ impl Session {
             frame: None,
             redraw: true,
             status: Status::default(),
+            wled: settings.wled,
+            http_port: options.http_port.unwrap_or(settings.http_port),
+            device: Arc::new(Mutex::new(device)),
+            server: None,
+            wled_error: None,
+            wled_refused: None,
+            announcement: None,
+            announce_error: None,
             samples: VecDeque::new(),
             remembered: settings,
             path,
             wake,
         };
         session.listen();
+        session.answer_as_wled();
         session
     }
 
@@ -120,6 +148,100 @@ impl Session {
                 self.bind_error = Some(e.to_string());
             }
         }
+    }
+
+    /// Serves WLED's API on the address listened on, and announces it there
+    /// unless that is this computer only, letting go of the old server and
+    /// announcement first. Nothing, when answering as WLED is off.
+    fn answer_as_wled(&mut self) {
+        self.announcement = None;
+        self.server = None;
+        self.wled_error = None;
+        self.wled_refused = None;
+        self.announce_error = None;
+        if !self.wled {
+            return;
+        }
+        let mac = {
+            let mut device = wled::lock(&self.device);
+            device.ip = (!self.bind.is_unspecified()).then_some(self.bind);
+            device.mac
+        };
+        // Clients know a device by its address: the one made up on the
+        // first run is kept.
+        if self.remembered.wled_mac != mac.to_string() {
+            self.remembered.wled_mac = mac.to_string();
+            self.save();
+        }
+        let address = SocketAddr::new(self.bind, self.http_port);
+        let started = match wled::Server::start(address, Arc::clone(&self.device)) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied && self.http_port < 1024 => {
+                self.wled_refused = Some(e.to_string());
+                let instead = SocketAddr::new(self.bind, wled::FALLBACK_PORT);
+                wled::Server::start(instead, Arc::clone(&self.device))
+            }
+            started => started,
+        };
+        let port = match started {
+            Ok(server) => {
+                let port = server.local().port();
+                self.server = Some(server);
+                port
+            }
+            Err(e) => {
+                eprintln!("ddpview: cannot answer as WLED on {address}: {e}");
+                self.wled_error = Some(e.to_string());
+                return;
+            }
+        };
+        if self.bind.is_loopback() {
+            return;
+        }
+        match Announcement::start(mac, self.bind, port) {
+            Ok(announcement) => self.announcement = Some(announcement),
+            Err(e) => {
+                eprintln!("ddpview: cannot announce the WLED device: {e}");
+                self.announce_error = Some(e);
+            }
+        }
+    }
+
+    /// Answers as a WLED device or stops, and remembers which.
+    pub fn set_wled(&mut self, on: bool) {
+        if on == self.wled {
+            return;
+        }
+        self.wled = on;
+        self.answer_as_wled();
+        self.remembered.wled = on;
+        self.save();
+    }
+
+    /// The name the WLED device answers with, and remembers it. WLED takes
+    /// up to 32 characters.
+    pub fn set_wled_name(&mut self, name: &str) {
+        let name: String = name.trim().chars().take(32).collect();
+        if name.is_empty() || name == self.remembered.wled_name {
+            return;
+        }
+        wled::lock(&self.device).name = name.clone();
+        self.remembered.wled_name = name;
+        self.save();
+    }
+
+    /// The WLED device as it is answering now.
+    pub fn wled_device(&self) -> Device {
+        wled::lock(&self.device).clone()
+    }
+
+    /// Where WLED's API is served, if it is.
+    pub fn wled_address(&self) -> Option<SocketAddr> {
+        self.server.as_ref().map(wled::Server::local)
+    }
+
+    /// The name the device can be found by on the network, if announced.
+    pub fn announced_as(&self) -> Option<&str> {
+        self.announcement.as_ref().map(Announcement::host)
     }
 
     /// Listens on another port, and remembers it if that worked.
@@ -212,7 +334,7 @@ impl Session {
             auto_size: self.auto,
             width: size.width,
             height: size.height,
-            ..self.remembered
+            ..self.remembered.clone()
         };
         if remembered != self.remembered {
             self.remembered = remembered;
@@ -289,5 +411,15 @@ fn collect(mut session: ResMut<Session>) {
         session.frame = Some(frame);
         session.redraw = true;
         session.follow_guess();
+    }
+    if session.server.is_some() {
+        let live = match session.arriving() {
+            Arriving::Yes(_) => session.status.sender.map(|sender| sender.ip()),
+            _ => None,
+        };
+        let mut device = wled::lock(&session.device);
+        device.width = session.size.width;
+        device.height = session.size.height;
+        device.live = live;
     }
 }
