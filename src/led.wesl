@@ -27,8 +27,8 @@ struct Shape {
     // the spread is beside the die itself.
     spread: f32,
     glow: f32,
-    // How much a diffuser hides the dies themselves: 0 clear, 1 hidden.
-    diffuser: f32,
+    // How much the window's epoxy hazes the dies: 0 clear, 1 hidden.
+    haze: f32,
     // The halo: how far light from a die reaches across the package and
     // board, and how bright it is at the die; 0 when the halo is off.
     halo_spread: f32,
@@ -36,6 +36,14 @@ struct Shape {
     // What the LEDs' own light is multiplied by: 1, or more when they
     // are made brighter.
     gain: f32,
+    // With a diffuser in front: 1, and how many LEDs out one's light
+    // reaches, how far in millimetres, and how it lies on the diffuser's
+    // face, at `radius * u * u` for u from 0 to 1 in 64 steps, four to a
+    // vector. 0 without one.
+    diffused: f32,
+    reach: f32,
+    radius: f32,
+    profile: array<vec4<f32>, 16>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> shape: Shape;
@@ -107,17 +115,67 @@ fn shade(cell: vec2<f32>) -> vec3<f32> {
                 rectangle(b, shape.die),
             );
             let glow = shape.glow * vec3(spread(r), spread(g), spread(b));
-            // Through a diffuser the dies are seen less sharply, as part
+            // Through hazy epoxy the dies are seen less sharply, as part
             // of the spread light.
-            lit += mix(max(dies, glow), glow, shape.diffuser);
+            lit += mix(max(dies, glow), glow, shape.haze);
         }
     }
     return within_white(surface + shape.gain * colour * lit);
 }
 
+// The matte face of the diffuser lit by the room: black acrylic, a
+// little lighter than the board, the same everywhere.
+const SHEET: vec3<f32> = vec3(0.004, 0.004, 0.0045);
+
+// How one LED's light lies on the diffuser's face, `at` millimetres
+// from it, per square millimetre.
+fn profile(at: f32) -> f32 {
+    if at >= shape.radius {
+        return 0.0;
+    }
+    let u = sqrt(at / shape.radius) * 63.0;
+    let i = min(i32(floor(u)), 62);
+    let f = u - f32(i);
+    let a = shape.profile[i / 4][i % 4];
+    let b = shape.profile[(i + 1) / 4][(i + 1) % 4];
+    return mix(a, b, f);
+}
+
+// The light leaving one point of the diffuser's face: the light of every
+// LED near enough, as it lands there. Nothing behind the sheet is seen.
+// Smooth enough to need one sample a screen pixel.
+fn diffused(cell: vec2<f32>) -> vec3<f32> {
+    let here = vec2<i32>(floor(cell));
+    let reach = i32(shape.reach);
+    let size = vec2<i32>(shape.size);
+    var light = vec3(0.0);
+    for (var dy = -reach; dy <= reach; dy++) {
+        for (var dx = -reach; dx <= reach; dx++) {
+            let led = here + vec2(dx, dy);
+            if any(led < vec2(0)) || any(led >= size) {
+                continue;
+            }
+            let at = length(cell - (vec2<f32>(led) + 0.5)) * shape.pitch;
+            let k = profile(at);
+            if k > 0.0 {
+                light += k * textureLoad(picture, led, 0).rgb;
+            }
+        }
+    }
+    // The profile is per square millimetre; each LED has a cell's worth.
+    let cell_area = shape.pitch * shape.pitch;
+    return within_white(SHEET + shape.gain * cell_area * light);
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let cell = in.uv * shape.size;
+    if shape.diffused > 0.0 {
+        var out = vec4(diffused(cell), 1.0);
+@if(SRGB_OUTPUT)
+        out = vec4(linear_to_srgb(out.rgb), out.a);
+        return out;
+    }
     // This screen pixel's extent, in pixels of the panel.
     let across = dpdx(cell);
     let down = dpdy(cell);

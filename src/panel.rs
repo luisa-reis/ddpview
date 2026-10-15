@@ -45,9 +45,9 @@ pub struct Led {
     /// bright that is beside the die itself.
     pub spread: f32,
     pub glow: f32,
-    /// How much a diffuser in the window blurs the dies into their
-    /// spread light: 0 for clear, 1 for only the spread light seen.
-    pub diffuser: f32,
+    /// How much the window's own epoxy hazes the dies into their spread
+    /// light: 0 for clear, 1 for only the spread light seen.
+    pub haze: f32,
     /// The halo, when it is on: how far a die's light reaches across the
     /// package and board, and how bright that is at the die.
     pub halo_spread: f32,
@@ -75,7 +75,7 @@ const SMD2121: Led = Led {
     blue: [-0.32, 0.3],
     spread: 0.5,
     glow: 0.85,
-    diffuser: 0.0,
+    haze: 0.0,
     halo_spread: 0.75,
     halo: 0.3,
 };
@@ -83,10 +83,10 @@ const SMD2121: Led = Led {
 /// SMD1515, from NationStar's drawings (NH-B1515RGBA-HF and -GF,
 /// REESTAR RS-1515MBAM, which agree): a black package 1.6 mm wide and
 /// 1.5 mm tall with square corners; a rounded-square cup about 1.3 by
-/// 1.22 mm at the top, filled with black matte epoxy with a diffuser;
+/// 1.22 mm at the top, filled with hazy black matte epoxy;
 /// dies about 0.15 by 0.11 mm in a column down the middle, blue 0.25 mm
 /// above the centre, green on it, red 0.24 mm below. The spread and
-/// diffuser are judged, not measured: the diffuser blurs the dies into
+/// haze are judged, not measured: the haze blurs the dies into
 /// one soft spot that fills much of the cup.
 const SMD1515: Led = Led {
     pitch: 1.875,
@@ -100,7 +100,7 @@ const SMD1515: Led = Led {
     blue: [0.0, -0.25],
     spread: 0.6,
     glow: 0.75,
-    diffuser: 0.7,
+    haze: 0.7,
     halo_spread: 0.47,
     halo: 0.3,
 };

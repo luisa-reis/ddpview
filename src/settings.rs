@@ -9,11 +9,12 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::ddp;
+use crate::diffuser::Diffuser;
 use crate::panel::PanelType;
 use crate::size::Size;
 use crate::wled;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// The UDP port to listen on.
@@ -30,6 +31,11 @@ pub struct Settings {
     /// made brighter than a screen's white allows.
     pub led_halo: bool,
     pub led_brighter: bool,
+    /// For LED panel types: a diffuser in front, its thickness and its
+    /// distance from the LEDs in millimetres.
+    pub diffuser: bool,
+    pub diffuser_thickness: f32,
+    pub diffuser_distance: f32,
     /// Whether to answer as a WLED device, the name it answers with, and
     /// the made-up card address clients know it by: empty until the first
     /// run makes one.
@@ -50,6 +56,9 @@ impl Default for Settings {
             panel: PanelType::PixelArt,
             led_halo: true,
             led_brighter: true,
+            diffuser: false,
+            diffuser_thickness: Diffuser::DEFAULT.thickness,
+            diffuser_distance: Diffuser::DEFAULT.distance,
             wled: true,
             wled_name: "ddpview".into(),
             wled_mac: String::new(),
@@ -61,6 +70,14 @@ impl Default for Settings {
 impl Settings {
     pub fn size(&self) -> Size {
         Size::new(self.width, self.height)
+    }
+
+    /// The diffuser's sheet, whether it is in front or not.
+    pub fn diffuser_sheet(&self) -> Diffuser {
+        Diffuser {
+            thickness: self.diffuser_thickness,
+            distance: self.diffuser_distance,
+        }
     }
 
     /// Where the file is: `~/Library/Application Support/ddpview` on macOS,
@@ -82,13 +99,19 @@ impl Settings {
         };
         match toml::from_str::<Self>(&text) {
             Ok(settings)
-                if settings.size().fits() && settings.port != 0 && settings.http_port != 0 =>
+                if settings.size().fits()
+                    && settings.port != 0
+                    && settings.http_port != 0
+                    && settings.diffuser_sheet().fits() =>
             {
                 (settings, None)
             }
             Ok(_) => (
                 Self::default(),
-                Some(format!("{}: a size or port out of range", path.display())),
+                Some(format!(
+                    "{}: a size, port or diffuser out of range",
+                    path.display()
+                )),
             ),
             Err(e) => (
                 Self::default(),
@@ -139,6 +162,9 @@ mod tests {
             panel: PanelType::P3Smd2121,
             led_halo: false,
             led_brighter: true,
+            diffuser: true,
+            diffuser_thickness: 1.5,
+            diffuser_distance: 2.0,
             wled: false,
             wled_name: "Kitchen".into(),
             wled_mac: "021122aabbcc".into(),
@@ -148,7 +174,7 @@ mod tests {
         assert_eq!(Settings::load(&path), (settings.clone(), None));
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\nled_halo = false\nled_brighter = true\nwled = false\nwled_name = \"Kitchen\"\nwled_mac = \"021122aabbcc\"\nhttp_port = 8080\n",
+            "port = 4049\nauto_size = false\nwidth = 128\nheight = 64\npanel = \"p3-smd2121\"\nled_halo = false\nled_brighter = true\ndiffuser = true\ndiffuser_thickness = 1.5\ndiffuser_distance = 2.0\nwled = false\nwled_name = \"Kitchen\"\nwled_mac = \"021122aabbcc\"\nhttp_port = 8080\n",
             "plain enough to edit by hand"
         );
         assert!(!path.with_extension("toml.tmp").exists());
@@ -184,6 +210,8 @@ mod tests {
             "height = 5000\n",
             "port = 0\n",
             "http_port = 0\n",
+            "diffuser_thickness = 0.1\n",
+            "diffuser_distance = 50.0\n",
             "panel = \"p10\"\n",
             "not toml",
         ] {
@@ -213,5 +241,10 @@ mod tests {
             (d.wled, d.wled_name.as_str(), d.http_port),
             (true, "ddpview", 80)
         );
+        assert!(
+            !d.diffuser,
+            "a diffuser changes the look entirely: asked for"
+        );
+        assert_eq!(d.diffuser_sheet(), Diffuser::DEFAULT);
     }
 }

@@ -103,6 +103,7 @@ fn shape(session: &Session) -> Shape {
         led,
         session.led_halo,
         session.led_brighter,
+        session.spread.as_ref(),
     )
 }
 

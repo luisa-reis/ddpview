@@ -14,6 +14,7 @@ use bevy::prelude::*;
 use ddpview::announce::Announcement;
 use ddpview::cli::Options;
 use ddpview::ddp::Frame;
+use ddpview::diffuser::{Diffuser, Spread};
 use ddpview::listener::{Listener, Status};
 use ddpview::panel::PanelType;
 use ddpview::settings::Settings;
@@ -56,6 +57,11 @@ pub struct Session {
     /// For LED panel types: a halo around each LED, and brighter LEDs.
     pub led_halo: bool,
     pub led_brighter: bool,
+    /// For LED panel types: a diffuser in front, the sheet, and how the
+    /// light of one LED lands on it, worked out when any of them change.
+    pub diffuser: bool,
+    pub sheet: Diffuser,
+    pub spread: Option<Spread>,
     /// The guess in force, and the pixel count it was made for.
     pub guess: Option<(usize, Guess)>,
     /// The last frame shown.
@@ -104,6 +110,9 @@ impl Session {
             panel: settings.panel,
             led_halo: settings.led_halo,
             led_brighter: settings.led_brighter,
+            diffuser: settings.diffuser,
+            sheet: settings.diffuser_sheet(),
+            spread: None,
             guess: None,
             frame: None,
             redraw: true,
@@ -123,6 +132,7 @@ impl Session {
         };
         session.listen();
         session.answer_as_wled();
+        session.respread();
         session
     }
 
@@ -284,6 +294,7 @@ impl Session {
             return;
         }
         self.panel = panel;
+        self.respread();
         self.redraw = true;
         self.remembered.panel = panel;
         self.save();
@@ -310,6 +321,41 @@ impl Session {
         self.redraw = true;
         self.remembered.led_brighter = on;
         self.save();
+    }
+
+    /// Puts the diffuser in front of the LEDs or takes it away, and
+    /// remembers which.
+    pub fn set_diffuser(&mut self, on: bool) {
+        if on == self.diffuser {
+            return;
+        }
+        self.diffuser = on;
+        self.respread();
+        self.redraw = true;
+        self.remembered.diffuser = on;
+        self.save();
+    }
+
+    /// Changes the diffuser's thickness and distance, and remembers them.
+    pub fn set_sheet(&mut self, sheet: Diffuser) {
+        if sheet == self.sheet || !sheet.fits() {
+            return;
+        }
+        self.sheet = sheet;
+        self.respread();
+        self.redraw = true;
+        self.remembered.diffuser_thickness = sheet.thickness;
+        self.remembered.diffuser_distance = sheet.distance;
+        self.save();
+    }
+
+    /// Works out how one LED's light lands on the diffuser, when there is
+    /// a diffuser in front of LEDs.
+    fn respread(&mut self) {
+        self.spread = match self.panel.led() {
+            Some(led) if self.diffuser => Some(self.sheet.spread(&led)),
+            _ => None,
+        };
     }
 
     /// In auto, takes the size guessed for the last frame's pixel count,

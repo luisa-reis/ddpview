@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use ddpview::ddp;
+use ddpview::diffuser::Diffuser;
 use ddpview::panel::{PanelType, BRIGHTER};
 use ddpview::size::{Size, MAX_SIDE, PRESETS};
 use egui::{Align2, Color32, RichText};
@@ -138,12 +139,55 @@ fn panel_type(ui: &mut egui::Ui, session: &mut Session) {
             h as f32 * pitch
         );
         ui.label(RichText::new(text).weak());
-        let mut halo = session.led_halo;
-        ui.checkbox(&mut halo, "Halo around each LED");
-        session.set_led_halo(halo);
+        if !session.diffuser {
+            let mut halo = session.led_halo;
+            ui.checkbox(&mut halo, "Halo around each LED");
+            session.set_led_halo(halo);
+        }
         let mut brighter = session.led_brighter;
         ui.checkbox(&mut brighter, format!("Brighter ({BRIGHTER}×)"));
         session.set_led_brighter(brighter);
+        diffuser(ui, session);
+    }
+}
+
+/// A sheet of black acrylic in front of the LEDs: whether, how thick,
+/// and how far in front.
+fn diffuser(ui: &mut egui::Ui, session: &mut Session) {
+    let mut on = session.diffuser;
+    ui.checkbox(&mut on, "Black matte diffuser");
+    session.set_diffuser(on);
+    if !session.diffuser {
+        return;
+    }
+    let mut sheet = session.sheet;
+    egui::Grid::new("diffuser").num_columns(2).show(ui, |ui| {
+        ui.label("Thickness");
+        ui.add(
+            egui::DragValue::new(&mut sheet.thickness)
+                .range(Diffuser::THICKNESS)
+                .speed(0.05)
+                .fixed_decimals(1)
+                .suffix(" mm"),
+        );
+        ui.end_row();
+        ui.label("Distance");
+        ui.add(
+            egui::DragValue::new(&mut sheet.distance)
+                .range(Diffuser::DISTANCE)
+                .speed(0.1)
+                .fixed_decimals(1)
+                .suffix(" mm"),
+        );
+        ui.end_row();
+    });
+    session.set_sheet(sheet);
+    if let Some(spread) = &session.spread {
+        let text = format!(
+            "{:.0}% of the light comes through",
+            spread.transmitted() * 100.0
+        );
+        ui.label(RichText::new(text).weak());
     }
 }
 

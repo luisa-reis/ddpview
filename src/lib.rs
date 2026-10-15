@@ -4,6 +4,7 @@
 pub mod announce;
 pub mod cli;
 pub mod ddp;
+pub mod diffuser;
 pub mod forward;
 pub mod listener;
 pub mod panel;
