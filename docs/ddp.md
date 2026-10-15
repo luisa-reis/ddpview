@@ -140,7 +140,9 @@ frames back would trade a stale patch for a stutter.
 
 ## What it does not do
 
-- Answer queries or announce itself (DDP's JSON status and discovery).
+- Answer DDP's own queries (its JSON status, config and discovery over
+  DDP). It answers WLED's JSON API over HTTP and announces itself as
+  WLED does instead: [using.md](using.md#answering-as-wled).
 - Pass replies back from a receiver forwarded to.
 - Bit depths other than 8, HSL, or greyscale: all are read as 8-bit RGB.
 - Use the timecode to synchronise.

@@ -140,6 +140,45 @@ run it on another port and forward to that. Forwarding to `ddpview`'s
 own address and port is refused, as it would send every packet round in
 a loop.
 
+## Answering as WLED
+
+Programs that send to WLED often ask the device about itself before they
+send: its name, how many LEDs it has, the matrix's width and height. And
+apps find WLED devices by their network announcement. `ddpview` answers
+both, as a WLED device would, so that such a program can be pointed at it,
+or find it, and send to it like a real one. It is on unless **Answer as a
+WLED device** is unticked in the controls, which is remembered.
+
+- **The API**: WLED's JSON API over HTTP, on the same address as DDP and
+  TCP port 80, the port WLED's clients take for granted. It answers as
+  WLED 0.15.0 with the panel's size (`/json/info`, `/json/state`,
+  `/json/cfg` and the rest that clients read; one segment, the "Solid"
+  effect), the **Name** set in the controls, and whether a stream is
+  arriving and from where. Opening it in a browser shows a short page
+  saying what it is.
+- **What clients change**: turning it on and off and the brightness are
+  kept and given back, but do not change the picture; the controls say
+  when a client has set them. Other settings are accepted and forgotten.
+- **Port 80** is refused to programs not run as root on Linux, and on
+  macOS unless they listen on every address. Then `ddpview` takes 8080
+  instead and says so; clients that assume 80 will not reach it there.
+  On macOS, `--bind 0.0.0.0` gets 80. `--http-port` picks another port
+  outright.
+- **The announcement**: mDNS (Bonjour) service `_wled._tcp` under the
+  host name `ddpview-` and six hex digits, e.g. `ddpview-6e4c72.local`,
+  as WLED announces itself. Only when listening on the network
+  (`--bind`): on `127.0.0.1` there is no one to tell. Quitting says
+  goodbye, so apps drop it at once.
+- **Its identity**: WLED clients know a device by its card address
+  (MAC). `ddpview` makes one up on the first run (locally administered,
+  so no real card's) and keeps it in the settings file, so that a client
+  that added it once knows it again.
+
+What a client sends is still DDP to port 4048: WLED has no way to say
+another port, so a `ddpview` listening elsewhere is not reached by them,
+and the controls point that out. Sending to WLED by other protocols (E1.31,
+Art-Net, WLED's own UDP) is not received.
+
 ## Arriving
 
 - **Frames a second**, measured over the last two seconds.
@@ -157,6 +196,7 @@ frame in view.
 
 ```
 ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
+        [--http-port N]
 ```
 
 | Flag | Meaning |
@@ -165,6 +205,7 @@ ddpview [--size WxH] [--port N] [--bind ADDRESS] [--forward HOST[:PORT]]
 | `--port N` | Listens on this port for the run |
 | `--bind ADDRESS` | Listens on this address; the default is `127.0.0.1` |
 | `--forward HOST[:PORT]` | Also sends every DDP packet on to this receiver; may be repeated |
+| `--http-port N` | Answers WLED's API on this TCP port for the run; the default is 80 |
 | `--help`, `--version` | Print and leave |
 
 Flags override what is remembered without changing it; `--bind` and
@@ -187,12 +228,20 @@ height = 64
 panel = "pixel-art"
 led_halo = true
 led_brighter = true
+wled = true
+wled_name = "ddpview"
+wled_mac = "f29ea86e4c72"
+http_port = 80
 ```
 
 `auto_size` is "Guess from the frames"; `width` and `height` are the size
 set, or the last guess, which is what the window opens at. `panel` is
 `"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1415"`; `led_halo` and
-`led_brighter` are the two LED checkboxes. The file is written when one of these changes in the window, and can be edited by hand
+`led_brighter` are the two LED checkboxes. `wled` and `wled_name` are
+**Answer as a WLED device** and its **Name**; `wled_mac` is the made-up
+card address, written on the first run; `http_port` is the API's port,
+which only the file and `--http-port` set. The file is written when one
+of these changes in the window, and can be edited by hand
 while `ddpview` is not running. Settings left out take their defaults, the
 ones above. A file that cannot be read is ignored, with a message on the
 terminal, and replaced at the next change. Deleting it starts afresh.

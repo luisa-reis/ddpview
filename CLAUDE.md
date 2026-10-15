@@ -34,6 +34,12 @@ Library (`src/lib.rs`):
   for each frame.
 - `src/forward.rs` — `--forward`: reading a receiver's address, the
   loop check, and the sockets packets are sent on from.
+- `src/wled.rs` — answering as a WLED device: `Device` (what it answers
+  with, shared with the window), the JSON it answers (`Device::answer`,
+  tested without a network) and `Server`, a small HTTP server on a
+  thread of its own. A request at a time, connection closed after.
+- `src/announce.rs` — the mDNS announcement `_wled._tcp`, made when
+  listening beyond this computer; dropping it says goodbye.
 - `src/settings.rs` — the TOML settings file.
 - `src/panel.rs` — `PanelType`: Pixel Art or an LED panel type, and
   `Led`, the LED's geometry in millimetres, one constant a type. A new
@@ -45,7 +51,9 @@ Binary (`src/main.rs`), all Bevy:
 - `src/main.rs` — the app: plugins, the redraw policy, the wake-up from
   the listener's thread.
 - `src/session.rs` — `Session`, the one resource the rest works from: the
-  listener, size, last frame, what is remembered. The controls change it
+  listener, the WLED server and announcement, size, last frame, what is
+  remembered. It tells the WLED `Device` the size and sender each
+  update. The controls change it
   only through its methods, which also save.
 - `src/view.rs` — the picture: the frame as a texture (`Picture`), drawn
   by a sprite (Pixel Art) or a rectangle with the LED material, as the
