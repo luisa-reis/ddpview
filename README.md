@@ -9,7 +9,7 @@ LED matrix, before the matrix is on the desk.
 
 - Receives DDP on UDP port 4048, frames of any number of packets.
 - Shows the panel as plain square pixels, or as an LED matrix (P3 with
-  SMD2121 LEDs, or P1.875 with SMD1415), as large as fits the window.
+  SMD2121 LEDs, or P1.875 with SMD1515), as large as fits the window.
 - The panel's size is typed in, picked from presets, or guessed from the
   number of pixels in a frame.
 - Shows the frame rate arriving and who is sending, and says so when

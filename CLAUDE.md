@@ -13,9 +13,9 @@ Context for Claude Code sessions working on ddpview.
   Bevy was chosen on purpose, for the 3D rendering planned next; do not
   swap it for something lighter.
 - It shows plain square pixels, or a flat face-on LED panel drawn by a
-  shader (P3 SMD2121, P1.875 SMD1415), as the user picks. What comes later, in
-  order, is in the todo file, `../ddpview-todo.md` (outside the
-  repository), which also records what was decided and why.
+  shader (P3 SMD2121, P1.875 SMD1515), as the user picks. What comes
+  later, in order, is in the todo file, `../ddpview-todo.md` (outside
+  the repository), which also records what was decided and why.
 
 ## Layout
 

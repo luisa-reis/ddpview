@@ -15,9 +15,10 @@ pub enum PanelType {
     /// An LED matrix of 3 mm pitch built from SMD2121 LEDs.
     #[serde(rename = "p3-smd2121")]
     P3Smd2121,
-    /// An LED matrix of 1.875 mm pitch built from SMD1415 LEDs.
-    #[serde(rename = "p1.875-smd1415")]
-    P1875Smd1415,
+    /// An LED matrix of 1.875 mm pitch built from SMD1515 LEDs. Once
+    /// misnamed SMD1515, the name settings files of then still use.
+    #[serde(rename = "p1.875-smd1515", alias = "p1.875-smd1415")]
+    P1875Smd1515,
 }
 
 /// What one LED of a panel looks like, face-on, in millimetres from the
@@ -71,12 +72,12 @@ const SMD2121: Led = Led {
     halo: 0.3,
 };
 
-/// SMD1415: a black package 1.4 mm wide and 1.5 mm tall, its insides
+/// SMD1515: a black package 1.5 mm square, its insides
 /// those of the SMD2121 at two thirds, the dies a little less shrunk:
 /// a die is much the same size whatever package it is in.
-const SMD1415: Led = Led {
+const SMD1515: Led = Led {
     pitch: 1.875,
-    package: [1.4, 1.5],
+    package: [1.5, 1.5],
     corner: 0.1,
     lens: 0.55,
     die: 0.24,
@@ -94,7 +95,7 @@ impl PanelType {
     pub const ALL: [PanelType; 3] = [
         PanelType::PixelArt,
         PanelType::P3Smd2121,
-        PanelType::P1875Smd1415,
+        PanelType::P1875Smd1515,
     ];
 
     /// What its LEDs look like; `None` for plain pixels.
@@ -102,7 +103,7 @@ impl PanelType {
         match self {
             PanelType::PixelArt => None,
             PanelType::P3Smd2121 => Some(SMD2121),
-            PanelType::P1875Smd1415 => Some(SMD1415),
+            PanelType::P1875Smd1515 => Some(SMD1515),
         }
     }
 
@@ -118,7 +119,7 @@ impl fmt::Display for PanelType {
         f.write_str(match self {
             PanelType::PixelArt => "Pixel Art",
             PanelType::P3Smd2121 => "P3 SMD2121 LED",
-            PanelType::P1875Smd1415 => "P1.875 SMD1415 LED",
+            PanelType::P1875Smd1515 => "P1.875 SMD1515 LED",
         })
     }
 }
@@ -137,11 +138,18 @@ mod tests {
         for (panel, text) in [
             (PanelType::PixelArt, "panel = \"pixel-art\"\n"),
             (PanelType::P3Smd2121, "panel = \"p3-smd2121\"\n"),
-            (PanelType::P1875Smd1415, "panel = \"p1.875-smd1415\"\n"),
+            (PanelType::P1875Smd1515, "panel = \"p1.875-smd1515\"\n"),
         ] {
             assert_eq!(toml::to_string(&In { panel }).unwrap(), text);
             assert_eq!(toml::from_str::<In>(text).unwrap(), In { panel });
         }
+        assert_eq!(
+            toml::from_str::<In>("panel = \"p1.875-smd1415\"\n").unwrap(),
+            In {
+                panel: PanelType::P1875Smd1515
+            },
+            "the old, wrong name still reads"
+        );
     }
 
     #[test]
@@ -150,7 +158,7 @@ mod tests {
         assert_eq!(PanelType::ALL[0], PanelType::PixelArt);
         assert_eq!(PanelType::P3Smd2121.to_string(), "P3 SMD2121 LED");
         assert_eq!(PanelType::P3Smd2121.pitch_mm(), Some(3.0));
-        assert_eq!(PanelType::P1875Smd1415.pitch_mm(), Some(1.875));
+        assert_eq!(PanelType::P1875Smd1515.pitch_mm(), Some(1.875));
         assert_eq!(PanelType::PixelArt.pitch_mm(), None);
     }
 

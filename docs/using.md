@@ -27,8 +27,8 @@ The first control under **Panel** sets what the pixels look like:
   own channel, and its light spreads a little through the lens. The gaps
   between packages are dark board, and an unlit LED still shows faintly,
   so the grid stays visible on black.
-- **P1.875 SMD1415 LED**: the same at 1.875 mm pitch, each pixel a black
-  SMD1415 package, 1.4 mm wide and 1.5 mm tall. The packages fill more
+- **P1.875 SMD1515 LED**: the same at 1.875 mm pitch, each pixel a black
+  SMD1515 package, 1.5 mm square. The packages fill more
   of each cell, so the gaps are narrower; the lens and dies are smaller
   in proportion.
 
@@ -236,12 +236,13 @@ http_port = 80
 
 `auto_size` is "Guess from the frames"; `width` and `height` are the size
 set, or the last guess, which is what the window opens at. `panel` is
-`"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1415"`; `led_halo` and
+`"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1515"` (its earlier,
+wrong name, `"p1.875-smd1415"`, is still read); `led_halo` and
 `led_brighter` are the two LED checkboxes. `wled` and `wled_name` are
 **Answer as a WLED device** and its **Name**; `wled_mac` is the made-up
 card address, written on the first run; `http_port` is the API's port,
 which only the file and `--http-port` set. The file is written when one
-of these changes in the window, and can be edited by hand
-while `ddpview` is not running. Settings left out take their defaults, the
+of these changes in the window, and can be edited by hand while
+`ddpview` is not running. Settings left out take their defaults, the
 ones above. A file that cannot be read is ignored, with a message on the
 terminal, and replaced at the next change. Deleting it starts afresh.
