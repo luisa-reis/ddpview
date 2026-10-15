@@ -40,6 +40,10 @@ Library (`src/lib.rs`):
   thread of its own. A request at a time, connection closed after.
 - `src/announce.rs` — the mDNS announcement `_wled._tcp`, made when
   listening beyond this computer; dropping it says goodbye.
+- `src/diffuser.rs` — the black matte diffuser: follows one LED's light
+  through the gap and the tinted sheet to a radial profile (`Spread`),
+  worked out on the CPU when the sheet or panel type changes, which the
+  shader adds up over the LEDs near each point.
 - `src/settings.rs` — the TOML settings file.
 - `src/panel.rs` — `PanelType`: Pixel Art or an LED panel type, and
   `Led`, the LED's geometry in millimetres, one constant a type. A new
@@ -63,6 +67,8 @@ Binary (`src/main.rs`), all Bevy:
   uniform; the two structs must match field for field). The shader is
   embedded in the binary; the unlit colours are constants at its top.
   `package` is a WESL keyword: do not name a field that.
+  With a diffuser it draws no LED, but adds up the `Spread` of the
+  LEDs within reach of each point, one sample a screen pixel.
 - `src/controls.rs` — the egui panel and the "nothing arriving" notice.
 
 ## Building

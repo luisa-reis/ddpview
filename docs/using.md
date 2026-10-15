@@ -60,6 +60,42 @@ light; with neither, the LEDs are drawn as they are.
 
 The type and both checkboxes are remembered.
 
+### The diffuser
+
+**Black matte diffuser**, under an LED type, puts a sheet of black
+(tinted) acrylic with a matte face in front of the LEDs, as is often
+done to turn the dots into a smooth picture. **Thickness** (0.5 to 10
+mm, 3 to start with) and **Distance** from the LEDs (0 to 20 mm, 0 to
+start with) are set beside it; drag them or type a number. It is off
+until ticked, and remembered with its sizes.
+
+What shows is the light landing on the sheet's matte face; the board and
+packages behind are lost in the tint. Each LED's light is followed
+there, as a real one's goes:
+
+- it leaves the LED spread out as a display LED's does (Lambertian, a
+  viewing angle of about 120 degrees), from a patch the size of its
+  window;
+- it crosses the gap, spreading further the wider the gap;
+- it bends into the acrylic (refractive index 1.49), losing what the
+  surface reflects, which is more at a slant;
+- the tint absorbs it along its path: 3 mm straight through lets a
+  quarter through, and a slanting path, being longer, less.
+
+So a thicker sheet is darker and blurs more, and a gap blurs a great
+deal and darkens little. The controls say what share of the light comes
+through: about 19% at 3 mm, 54% at 1 mm. **Brighter (4×)** applies as
+before; with a thin sheet it takes the picture past white, so it may be
+better off. **Halo** is hidden: it stands for the glare of bare LEDs.
+
+At 3 mm against the LEDs, an LED's light reaches about 1.7 mm before
+halving, nearly a P1.875 panel's pitch: there the pixels run together
+into a soft picture with a faint grid. On the P3 panel the dots stay
+apart for longer. How dark the tint is (25% through 3 mm) is a
+judgement, not a particular sheet's figure. The matte face is taken to
+be the outer one, facing you; with it facing the LEDs the picture would
+be sharper.
+
 ## The panel's size
 
 DDP does not say how wide a panel is, only how many pixels a frame has.
@@ -231,6 +267,9 @@ height = 64
 panel = "pixel-art"
 led_halo = true
 led_brighter = true
+diffuser = false
+diffuser_thickness = 3.0
+diffuser_distance = 0.0
 wled = true
 wled_name = "ddpview"
 wled_mac = "f29ea86e4c72"
@@ -241,7 +280,9 @@ http_port = 80
 set, or the last guess, which is what the window opens at. `panel` is
 `"pixel-art"`, `"p3-smd2121"` or `"p1.875-smd1515"` (its earlier,
 wrong name, `"p1.875-smd1415"`, is still read); `led_halo` and
-`led_brighter` are the two LED checkboxes. `wled` and `wled_name` are
+`led_brighter` are the two LED checkboxes; `diffuser`,
+`diffuser_thickness` and `diffuser_distance` the diffuser and its sizes
+in millimetres. `wled` and `wled_name` are
 **Answer as a WLED device** and its **Name**; `wled_mac` is the made-up
 card address, written on the first run; `http_port` is the API's port,
 which only the file and `--http-port` set. The file is written when one
